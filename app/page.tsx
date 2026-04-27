@@ -2,6 +2,8 @@ import connectDB from "@/lib/mongodb";
 import Link from "next/link";
 import DeleteButton from "@/components/DeleteButton";
 
+export const dynamic = "force-dynamic"; // Dòng này ép web luôn tải dữ liệu mới mỗi khi load trang
+
 async function getListings() {
   try {
     const conn = await connectDB();
