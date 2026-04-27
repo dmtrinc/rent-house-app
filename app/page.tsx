@@ -2,7 +2,7 @@ import connectDB from "@/lib/mongodb";
 import Link from "next/link";
 import DeleteButton from "@/components/DeleteButton";
 
-// Đảm bảo dữ liệu luôn mới nhất, không bị lưu cache cũ (Sửa lỗi đăng tin không hiện)
+// Ép trang luôn tải dữ liệu mới nhất (Sửa lỗi đăng ở localhost hiện mà web không hiện)
 export const dynamic = "force-dynamic";
 
 async function getListings() {
@@ -11,7 +11,7 @@ async function getListings() {
     const db = conn.connection.db;
     if (!db) return [];
 
-    // Lấy danh sách tin đăng từ database, tin mới nhất hiện lên đầu
+    // Lấy danh sách từ MongoDB, sắp xếp tin mới nhất lên đầu
     const listings = await db.collection("listings").find({}).sort({ createdAt: -1 }).toArray();
     
     return listings.map((item: any) => ({
@@ -27,13 +27,13 @@ async function getListings() {
 export default async function Home() {
   const listings = await getListings();
 
-  // URL Logo: Thay link này bằng link Cloudinary bạn lấy được sau khi up logo.png lên
-  const logoUrl = "https://res.cloudinary.com/your-cloud-name/image/upload/v12345678/logo.png";
+  // Link logo Cloudinary bạn đã cung cấp
+  const logoUrl = "https://res.cloudinary.com/df717ylr1/image/upload/v1777294578/logo_ifm9zc.png";
 
   return (
     <main style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto", backgroundColor: "#000", minHeight: "100vh", color: "#fff", fontFamily: "sans-serif" }}>
       
-      {/* Thanh tiêu đề và Header */}
+      {/* Header: Logo + Tên thương hiệu + Số điện thoại */}
       <div style={{ 
         display: "flex", 
         justifyContent: "space-between", 
@@ -43,13 +43,12 @@ export default async function Home() {
         paddingBottom: "20px" 
       }}>
         
-        {/* Phần Logo và Tên thương hiệu mới */}
         <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
           <img 
             src={logoUrl} 
             alt="Angiahouse Logo" 
             style={{ width: "50px", height: "50px", borderRadius: "10px", objectFit: "cover" }}
-            onError={(e) => { e.currentTarget.src = "https://via.placeholder.com/50?text=AG"; }} // Hiện ảnh tạm nếu link lỗi
+            // Đã xóa onError để tránh lỗi Client Component
           />
           <div>
             <h1 style={{ fontSize: "26px", margin: 0, fontWeight: "bold", color: "#fff" }}>
@@ -61,21 +60,19 @@ export default async function Home() {
           </div>
         </div>
 
-        {/* Nút Đăng tin */}
         <Link href="/dang-tin" style={{ 
           backgroundColor: "#0070f3", 
           color: "#fff", 
           padding: "12px 24px", 
           borderRadius: "10px", 
           textDecoration: "none", 
-          fontWeight: "bold",
-          transition: "0.3s"
+          fontWeight: "bold"
         }}>
           ➕ Đăng tin mới
         </Link>
       </div>
 
-      {/* Danh sách phòng trọ */}
+      {/* Danh sách các phòng trọ */}
       {listings.length === 0 ? (
         <div style={{ textAlign: "center", padding: "50px", color: "#666" }}>
           <p>Chưa có tin đăng nào. Hãy nhấn "Đăng tin mới" để bắt đầu.</p>
@@ -88,23 +85,22 @@ export default async function Home() {
               borderRadius: "20px", 
               overflow: "hidden", 
               border: "1px solid #222", 
-              position: "relative",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.5)"
+              position: "relative"
             }}>
               
-              {/* Nút Xóa */}
+              {/* Nút Xóa (Component này đã có "use client" bên trong nên vẫn hoạt động) */}
               <div style={{ position: "absolute", top: "15px", right: "15px", zIndex: 10 }}>
                 <DeleteButton id={item._id} />
               </div>
 
-              {/* Ảnh bìa */}
+              {/* Ảnh bìa tin đăng */}
               <img 
-                src={item.imageUrl || "https://via.placeholder.com/400x300?text=No+Image"} 
+                src={item.imageUrl || "https://via.placeholder.com/400x300?text=Angiahouse"} 
                 style={{ width: "100%", height: "220px", objectFit: "cover" }} 
-                alt={item.title}
+                alt="Room image"
               />
 
-              {/* Nội dung tin */}
+              {/* Thông tin chi tiết */}
               <div style={{ padding: "20px" }}>
                 <h2 style={{ fontSize: "19px", margin: "0 0 12px 0", color: "#fff", lineHeight: "1.4" }}>
                   {item.title || item.name || "Chưa đặt tiêu đề"} 
@@ -114,7 +110,7 @@ export default async function Home() {
                   {item.price ? Number(item.price).toLocaleString("vi-VN") : "0"} đ
                 </p>
 
-                <p style={{ color: "#aaa", fontSize: "14px", margin: "15px 0 0 0", display: "flex", alignItems: "center", gap: "5px" }}>
+                <p style={{ color: "#aaa", fontSize: "14px", margin: "15px 0 0 0" }}>
                   📍 {item.address || "Địa chỉ đang cập nhật..."}
                 </p>
               </div>
