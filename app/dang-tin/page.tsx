@@ -1,51 +1,87 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CldUploadWidget } from "next-cloudinary";
+import Link from "next/link";
+import Script from "next/script";
 
 export default function DangTinPage() {
-  const [formData, setFormData] = useState({ title: "", price: "", address: "", description: "", imageUrl: "" });
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
 
-  const handleSubmit = async (e: any) => {
+  const handleUpload = () => {
+    // @ts-ignore
+    const widget = window.cloudinary.createUploadWidget(
+      { cloudName: "df717ylr1", uploadPreset: "my_uploads" },
+      (error: any, result: any) => {
+        if (!error && result.event === "success") {
+          setImageUrl(result.info.secure_url);
+        }
+      }
+    );
+    widget.open();
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!formData.imageUrl) return alert("Vui lòng tải ảnh lên trước!");
+    if (!imageUrl) return alert("Vui lòng tải ảnh lên!");
+    setLoading(true);
 
-    const res = await fetch("/api/post", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      title: formData.get("title"),
+      price: formData.get("price"),
+      address: formData.get("address"),
+      description: formData.get("description"),
+      imageUrl: imageUrl,
+    };
 
-    if (res.ok) {
-      alert("Đăng tin thành công!");
-      router.push("/");
-      router.refresh();
-    } else {
-      alert("Lỗi server, hãy kiểm tra MongoDB IP Whitelist");
+    try {
+      const res = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        alert("Đăng tin thành công!");
+        router.push("/");
+        router.refresh();
+      }
+    } catch (error) {
+      alert("Lỗi đăng tin");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: "500px", margin: "50px auto", padding: "20px", backgroundColor: "#111", borderRadius: "10px", color: "#fff" }}>
-      <h2 style={{ marginBottom: "20px" }}>Đăng tin mới</h2>
-      <form onSubmit={handleSubmit}>
-        <input placeholder="Tiêu đề" style={inputS} onChange={(e) => setFormData({...formData, title: e.target.value})} required />
-        <input placeholder="Giá (VNĐ)" type="number" style={inputS} onChange={(e) => setFormData({...formData, price: e.target.value})} required />
-        <input placeholder="Địa chỉ" style={inputS} onChange={(e) => setFormData({...formData, address: e.target.value})} />
-        
-        <CldUploadWidget uploadPreset="ml_default" onSuccess={(res: any) => setFormData({...formData, imageUrl: res.info.secure_url})}>
-          {({ open }) => (
-            <button type="button" onClick={() => open()} style={{ width: "100%", padding: "10px", marginBottom: "15px", backgroundColor: "#333", color: "#fff", border: "1px dashed #555", borderRadius: "5px", cursor: "pointer" }}>
-              {formData.imageUrl ? "✅ Đã có ảnh" : "📷 Tải ảnh lên Cloudinary"}
-            </button>
-          )}
-        </CldUploadWidget>
+    <main style={{ padding: "20px", maxWidth: "600px", margin: "0 auto", backgroundColor: "#000", minHeight: "100vh", color: "#fff", fontFamily: "sans-serif" }}>
+      <Script src="https://upload-widget.cloudinary.com/global/all.js" strategy="lazyOnload" />
+      
+      <Link href="/" style={{ color: "#aaa", textDecoration: "none", display: "block", marginBottom: "20px" }}>← Quay lại trang chủ</Link>
+      
+      <h1 style={{ textAlign: "center", marginBottom: "30px" }}>Đăng tin phòng mới</h1>
 
-        <textarea placeholder="Mô tả" style={{ ...inputS, height: "100px" }} onChange={(e) => setFormData({...formData, description: e.target.value})} />
-        <button type="submit" style={{ width: "100%", padding: "12px", backgroundColor: "#0070f3", color: "#fff", border: "none", borderRadius: "5px", fontWeight: "bold", cursor: "pointer" }}>Đăng tin ngay</button>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        <div style={{ border: "2px dashed #333", padding: "20px", textAlign: "center", borderRadius: "10px" }}>
+          {imageUrl ? (
+            <img src={imageUrl} style={{ width: "100%", height: "200px", objectFit: "cover", borderRadius: "8px" }} />
+          ) : (
+            <button type="button" onClick={handleUpload} style={{ padding: "15px", cursor: "pointer" }}>📸 Tải ảnh lên</button>
+          )}
+        </div>
+
+        <input name="title" placeholder="Tiêu đề" required style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#111", color: "#fff", border: "1px solid #333" }} />
+        <input name="price" type="number" placeholder="Giá thuê" required style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#111", color: "#fff", border: "1px solid #333" }} />
+        <input name="address" placeholder="Địa chỉ" required style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#111", color: "#fff", border: "1px solid #333" }} />
+        <textarea name="description" placeholder="Mô tả" rows={4} style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#111", color: "#fff", border: "1px solid #333" }} />
+
+        <button type="submit" disabled={loading} style={{ backgroundColor: "#0070f3", color: "#fff", padding: "15px", borderRadius: "10px", border: "none", fontWeight: "bold", cursor: "pointer" }}>
+          {loading ? "Đang xử lý..." : "🚀 Đăng tin ngay"}
+        </button>
       </form>
-    </div>
+    </main>
   );
 }
-const inputS = { width: "100%", padding: "10px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #333", backgroundColor: "#222", color: "#fff" };
