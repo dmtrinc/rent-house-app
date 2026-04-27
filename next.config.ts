@@ -1,13 +1,11 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   typescript: {
-    // Bỏ qua lỗi TypeScript khi build để có thể deploy
+    // Vẫn giữ cái này để bỏ qua lỗi Type khi deploy
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Bỏ qua lỗi ESLint khi build
-    ignoreDuringBuilds: true,
-  },
+  // Tuyệt đối KHÔNG để mục eslint ở đây nữa
 };
 
 export default nextConfig;
