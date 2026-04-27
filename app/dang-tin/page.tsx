@@ -4,17 +4,13 @@ import { useRouter } from "next/navigation";
 import { CldUploadWidget } from "next-cloudinary";
 
 export default function DangTinPage() {
-  const [formData, setFormData] = useState({
-    title: "",
-    price: "",
-    address: "",
-    description: "",
-    imageUrl: ""
-  });
+  const [formData, setFormData] = useState({ title: "", price: "", address: "", description: "", imageUrl: "" });
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
+    if (!formData.imageUrl) return alert("Vui lòng tải ảnh lên trước!");
+
     const res = await fetch("/api/post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -26,38 +22,30 @@ export default function DangTinPage() {
       router.push("/");
       router.refresh();
     } else {
-      alert("Có lỗi xảy ra");
+      alert("Lỗi server, hãy kiểm tra MongoDB IP Whitelist");
     }
   };
 
   return (
-    <div style={{ maxWidth: "500px", margin: "50px auto", padding: "20px", border: "1px solid #333", borderRadius: "10px", backgroundColor: "#111", color: "#fff" }}>
-      <h2>Đăng tin cho thuê mới</h2>
+    <div style={{ maxWidth: "500px", margin: "50px auto", padding: "20px", backgroundColor: "#111", borderRadius: "10px", color: "#fff" }}>
+      <h2 style={{ marginBottom: "20px" }}>Đăng tin mới</h2>
       <form onSubmit={handleSubmit}>
-        <input placeholder="Tiêu đề" style={inputStyle} onChange={(e) => setFormData({...formData, title: e.target.value})} required />
-        <input placeholder="Giá (VNĐ)" type="number" style={inputStyle} onChange={(e) => setFormData({...formData, price: e.target.value})} required />
-        <input placeholder="Địa chỉ" style={inputStyle} onChange={(e) => setFormData({...formData, address: e.target.value})} />
+        <input placeholder="Tiêu đề" style={inputS} onChange={(e) => setFormData({...formData, title: e.target.value})} required />
+        <input placeholder="Giá (VNĐ)" type="number" style={inputS} onChange={(e) => setFormData({...formData, price: e.target.value})} required />
+        <input placeholder="Địa chỉ" style={inputS} onChange={(e) => setFormData({...formData, address: e.target.value})} />
         
-        <CldUploadWidget 
-          uploadPreset="ml_default" 
-          onSuccess={(results: any) => {
-            setFormData({...formData, imageUrl: results.info.secure_url});
-          }}
-        >
+        <CldUploadWidget uploadPreset="ml_default" onSuccess={(res: any) => setFormData({...formData, imageUrl: res.info.secure_url})}>
           {({ open }) => (
-            <button type="button" onClick={() => open()} style={btnUploadStyle}>
-              {formData.imageUrl ? "✅ Đã có ảnh" : "📷 Tải ảnh lên"}
+            <button type="button" onClick={() => open()} style={{ width: "100%", padding: "10px", marginBottom: "15px", backgroundColor: "#333", color: "#fff", border: "1px dashed #555", borderRadius: "5px", cursor: "pointer" }}>
+              {formData.imageUrl ? "✅ Đã có ảnh" : "📷 Tải ảnh lên Cloudinary"}
             </button>
           )}
         </CldUploadWidget>
 
-        <textarea placeholder="Mô tả" style={{...inputStyle, height: "100px"}} onChange={(e) => setFormData({...formData, description: e.target.value})} />
-        <button type="submit" style={btnSubmitStyle}>Đăng tin ngay</button>
+        <textarea placeholder="Mô tả" style={{ ...inputS, height: "100px" }} onChange={(e) => setFormData({...formData, description: e.target.value})} />
+        <button type="submit" style={{ width: "100%", padding: "12px", backgroundColor: "#0070f3", color: "#fff", border: "none", borderRadius: "5px", fontWeight: "bold", cursor: "pointer" }}>Đăng tin ngay</button>
       </form>
     </div>
   );
 }
-
-const inputStyle = { width: "100%", padding: "10px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #333", backgroundColor: "#222", color: "#fff" };
-const btnUploadStyle = { width: "100%", padding: "10px", marginBottom: "15px", backgroundColor: "#444", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" };
-const btnSubmitStyle = { width: "100%", padding: "12px", backgroundColor: "#0070f3", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" as const };
+const inputS = { width: "100%", padding: "10px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #333", backgroundColor: "#222", color: "#fff" };
