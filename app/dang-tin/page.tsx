@@ -15,7 +15,6 @@ export default function DangTinPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     const res = await fetch("/api/post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -24,42 +23,25 @@ export default function DangTinPage() {
 
     if (res.ok) {
       alert("Đăng tin thành công!");
-      router.push("/"); // Quay về trang chủ
+      router.push("/");
       router.refresh();
     } else {
-      alert("Có lỗi xảy ra khi đăng tin");
+      alert("Có lỗi xảy ra");
     }
   };
 
   return (
-    <div style={{ maxWidth: "500px", margin: "50px auto", padding: "20px", border: "1px solid #ccc", borderRadius: "10px" }}>
+    <div style={{ maxWidth: "500px", margin: "50px auto", padding: "20px", border: "1px solid #333", borderRadius: "10px", backgroundColor: "#111", color: "#fff" }}>
       <h2>Đăng tin cho thuê mới</h2>
       <form onSubmit={handleSubmit}>
-        <input 
-          placeholder="Tiêu đề (VD: Phòng trọ giá rẻ...)" 
-          style={inputStyle}
-          onChange={(e) => setFormData({...formData, title: e.target.value})}
-          required
-        />
-        <input 
-          placeholder="Giá (VNĐ)" 
-          type="number" 
-          style={inputStyle}
-          onChange={(e) => setFormData({...formData, price: e.target.value})}
-          required
-        />
-        <input 
-          placeholder="Địa chỉ" 
-          style={inputStyle}
-          onChange={(e) => setFormData({...formData, address: e.target.value})}
-        />
+        <input placeholder="Tiêu đề" style={inputStyle} onChange={(e) => setFormData({...formData, title: e.target.value})} required />
+        <input placeholder="Giá (VNĐ)" type="number" style={inputStyle} onChange={(e) => setFormData({...formData, price: e.target.value})} required />
+        <input placeholder="Địa chỉ" style={inputStyle} onChange={(e) => setFormData({...formData, address: e.target.value})} />
         
-        {/* Nút tải ảnh lên Cloudinary */}
         <CldUploadWidget 
-          uploadPreset="ml_default" // Thay bằng preset của bạn nếu có
+          uploadPreset="ml_default" 
           onSuccess={(results: any) => {
             setFormData({...formData, imageUrl: results.info.secure_url});
-            alert("Đã tải ảnh lên thành công!");
           }}
         >
           {({ open }) => (
@@ -69,19 +51,13 @@ export default function DangTinPage() {
           )}
         </CldUploadWidget>
 
-        <textarea 
-          placeholder="Mô tả chi tiết" 
-          style={{...inputStyle, height: "100px"}}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
-        />
-
+        <textarea placeholder="Mô tả" style={{...inputStyle, height: "100px"}} onChange={(e) => setFormData({...formData, description: e.target.value})} />
         <button type="submit" style={btnSubmitStyle}>Đăng tin ngay</button>
       </form>
     </div>
   );
 }
 
-// CSS Inline đơn giản
-const inputStyle = { width: "100%", padding: "10px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #ddd" };
-const btnUploadStyle = { width: "100%", padding: "10px", marginBottom: "15px", backgroundColor: "#6c757d", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" };
-const btnSubmitStyle = { width: "100%", padding: "12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontSize: "16px", fontWeight: "bold" as const };
+const inputStyle = { width: "100%", padding: "10px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #333", backgroundColor: "#222", color: "#fff" };
+const btnUploadStyle = { width: "100%", padding: "10px", marginBottom: "15px", backgroundColor: "#444", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" };
+const btnSubmitStyle = { width: "100%", padding: "12px", backgroundColor: "#0070f3", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" as const };
