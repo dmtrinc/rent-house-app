@@ -2,60 +2,38 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 
-// GET: Ai cũng có thể xem chi tiết
+// GET: Lấy chi tiết tin (Công khai)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const conn = await connectDB();
-    const item = await conn.connection.db?.collection("listings").findOne({ _id: new ObjectId(id) });
-    return NextResponse.json(item);
+    const listing = await conn.connection.db?.collection("listings").findOne({ 
+      _id: new ObjectId(id) 
+    });
+
+    if (!listing) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+    return NextResponse.json(listing);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// DELETE: Chỉ máy đã đăng mới được xóa
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-    const { searchParams } = new URL(req.url);
-    const deviceId = searchParams.get("deviceId");
-
-    const conn = await connectDB();
-    const db = conn.connection.db;
-
-    const listing = await db?.collection("listings").findOne({ _id: new ObjectId(id) });
-    if (!listing) return NextResponse.json({ error: "Không tìm thấy tin" }, { status: 404 });
-
-    if (listing.deviceId !== deviceId) {
-      return NextResponse.json({ error: "Bạn không có quyền xóa tin này" }, { status: 403 });
-    }
-
-    await db?.collection("listings").deleteOne({ _id: new ObjectId(id) });
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// PUT: Chỉ máy đã đăng mới được sửa
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+// PATCH: Cập nhật nội dung (Có bảo mật ở tầng Edit Page)
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { deviceId, ...updateData } = body;
-
     const conn = await connectDB();
-    const db = conn.connection.db;
+    
+    // Tách action ẩn/hiện của Admin
+    const { role, action, ...updateData } = body;
+    const updateQuery = action 
+      ? { $set: { status: action } } 
+      : { $set: { ...updateData, updatedAt: new Date() } };
 
-    const listing = await db?.collection("listings").findOne({ _id: new ObjectId(id) });
-    if (listing?.deviceId !== deviceId) {
-      return NextResponse.json({ error: "Không có quyền chỉnh sửa" }, { status: 403 });
-    }
-
-    await db?.collection("listings").updateOne(
+    await conn.connection.db?.collection("listings").updateOne(
       { _id: new ObjectId(id) },
-      { $set: { ...updateData, updatedAt: new Date() } }
+      updateQuery
     );
 
     return NextResponse.json({ success: true });
