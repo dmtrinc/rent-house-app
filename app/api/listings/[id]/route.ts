@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 
-// GET: Lấy chi tiết tin
+// GET: Lấy chi tiết một tin cụ thể
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -10,11 +10,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const item = await conn.connection.db?.collection("listings").findOne({ _id: new ObjectId(id) });
     return NextResponse.json(item);
   } catch (error) {
-    return NextResponse.json({ error: "Không tìm thấy tin" }, { status: 404 });
+    return NextResponse.json({ error: "Lỗi lấy chi tiết" }, { status: 404 });
   }
 }
 
-// PUT: Sửa tin (Chỉ cho phép nếu khớp deviceId)
+// PUT: Cập nhật tin (Chỉ máy chủ tin mới sửa được)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -23,9 +23,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const db = conn.connection.db;
 
     const existing = await db?.collection("listings").findOne({ _id: new ObjectId(id) });
-    
+
+    // KIỂM TRA QUYỀN TRUY CẬP
     if (!existing || existing.deviceId !== deviceId) {
-      return NextResponse.json({ error: "Bạn không có quyền chỉnh sửa tin này!" }, { status: 403 });
+      return NextResponse.json({ error: "Bạn không có quyền sửa tin này!" }, { status: 403 });
     }
 
     await db?.collection("listings").updateOne(
@@ -38,7 +39,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-// DELETE: Xóa tin (Chỉ cho phép nếu khớp deviceId)
+// DELETE: Xóa tin (Chỉ máy chủ tin mới xóa được)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -55,8 +56,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
 
     await db?.collection("listings").deleteOne({ _id: new ObjectId(id) });
-    return NextResponse.json({ message: "Đã xóa tin" });
+    return NextResponse.json({ message: "Đã xóa tin vĩnh viễn" });
   } catch (error) {
-    return NextResponse.json({ error: "Lỗi khi xóa" }, { status: 500 });
+    return NextResponse.json({ error: "Lỗi xóa tin" }, { status: 500 });
   }
 }
