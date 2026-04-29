@@ -5,12 +5,22 @@ import mongoose from "mongoose";
 import { revalidatePath } from "next/cache";
 import { v2 as cloudinary } from "cloudinary";
 
-// Cấu hình Cloudinary (để xóa ảnh trên cloud khi xóa tin)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+function getCloudinaryPublicId(url: string): string | null {
+  try {
+    // URL dạng: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/folder/subfolder/filename.jpg
+    // Public ID là toàn bộ path sau /upload/vXXXXXX/ và bỏ đuôi file
+    const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function deleteListing(id: string, imageUrl?: string) {
   await connectDB();
@@ -19,10 +29,10 @@ export async function deleteListing(id: string, imageUrl?: string) {
   // 1. Xóa ảnh trên Cloudinary (nếu có)
   if (imageUrl) {
     try {
-      // Lấy public_id từ URL (đoạn mã sau folder rent-house/)
-      const publicId = imageUrl.split('/').pop()?.split('.')[0];
+      const publicId = getCloudinaryPublicId(imageUrl);
       if (publicId) {
-        await cloudinary.uploader.destroy(`rent-house/${publicId}`);
+        const result = await cloudinary.uploader.destroy(publicId);
+        console.log("Cloudinary xóa ảnh:", publicId, "→", result.result);
       }
     } catch (error) {
       console.error("Lỗi khi xóa ảnh trên Cloudinary:", error);
@@ -31,9 +41,9 @@ export async function deleteListing(id: string, imageUrl?: string) {
 
   // 2. Xóa dữ liệu trong MongoDB
   await db?.collection("listings").deleteOne({
-    _id: new mongoose.Types.ObjectId(id)
+    _id: new mongoose.Types.ObjectId(id),
   });
 
-  // 3. Làm tươi lại trang chủ để cập nhật danh sách
+  // 3. Làm tươi lại trang chủ
   revalidatePath("/");
 }
