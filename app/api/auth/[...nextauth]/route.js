@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import connectDB from "@/lib/mongodb";
-import { User } from "@/models/user";
+import User from "@/models/user";
 import bcrypt from "bcrypt";
 
 // QUAN TRỌNG: Phải có chữ 'export' ở đây
@@ -24,3 +24,4 @@ export const authOptions = {
 
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
+
