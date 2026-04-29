@@ -23,6 +23,15 @@ async function checkOwnership(listing: any, body: any): Promise<boolean> {
   const userId = cookieStore.get("user_id")?.value;
   const { deviceId } = body;
 
+  // ← THÊM LOG NÀY
+  console.log("checkOwnership:", {
+    userRole,
+    userId,
+    deviceId_from_body: deviceId,
+    deviceId_in_db: listing.deviceId,
+    userId_in_db: listing.userId,
+  });
+
   if (userRole === "admin") return true;
   if (userId && listing.userId && String(listing.userId) === String(userId)) return true;
   if (deviceId && listing.deviceId && listing.deviceId === deviceId) return true;
