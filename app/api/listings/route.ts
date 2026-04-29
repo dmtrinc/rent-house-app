@@ -1,36 +1,64 @@
-import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+// BẮT BUỘC: Import NextResponse từ next/server cho các file route.ts
+import { NextResponse } from "next/server"; 
+import connectMongoDB from "../../../lib/mongodb";
+import Listing from "../../../models/listing";
 
+/**
+ * GET: Lấy danh sách toàn bộ tin đăng
+ */
 export async function GET() {
   try {
-    const conn = await connectDB();
-    const db = conn.connection.db;
-    const listings = await db?.collection("listings").find().sort({ createdAt: -1 }).toArray();
-    return NextResponse.json(listings);
+    // 1. Kết nối cơ sở dữ liệu
+    await connectMongoDB();
+
+    // 2. Truy vấn dữ liệu từ bảng Listing
+    // Sắp xếp theo updatedAt: -1 để tin mới sửa/đăng luôn hiện lên đầu
+    const listings = await Listing.find().sort({ updatedAt: -1 });
+
+    // 3. Trả về phản hồi JSON
+    // Sử dụng (listings || []) để đảm bảo luôn trả về mảng, tránh lỗi parse JSON ở Frontend
+    return NextResponse.json(listings || []);
+
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error("Lỗi fetch listings:", error);
+    
+    // Trả về lỗi 500 kèm thông báo chi tiết nếu có sự cố
+    return NextResponse.json(
+      { 
+        message: "Lỗi hệ thống khi tải danh sách tin đăng", 
+        error: error.message 
+      }, 
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: Request) {
+/**
+ * POST: Tạo tin đăng mới
+ */
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    const conn = await connectDB();
-    const db = conn.connection.db;
+    const data = await req.json();
+    
+    if (!data.title || !data.address) {
+      return NextResponse.json(
+        { message: "Tiêu đề và địa chỉ là bắt buộc" },
+        { status: 400 }
+      );
+    }
 
-    const result = await db?.collection("listings").insertOne({
-      title: body.title,
-      price: Number(body.price),
-      address: body.address,
-      description: body.description,
-      images: body.images || [],
-      coverImage: body.images?.[0] || "", 
-      deviceId: body.deviceId, // Lưu định danh máy tính
-      createdAt: new Date(),
-    });
-
-    return NextResponse.json({ success: true, id: result?.insertedId });
+    await connectMongoDB();
+    const newListing = await Listing.create(data);
+    
+    return NextResponse.json(
+      { message: "Tạo tin đăng thành công", id: newListing._id },
+      { status: 201 }
+    );
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error("Lỗi POST listing:", error);
+    return NextResponse.json(
+      { message: "Không thể tạo tin đăng", error: error.message },
+      { status: 500 }
+    );
   }
 }

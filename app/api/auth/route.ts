@@ -1,55 +1,97 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
+import User from "@/models/user";
 
 export async function POST(req: Request) {
   try {
     const { action, username, password } = await req.json();
-    const conn = await connectDB();
-    const db = conn.connection.db;
 
-    // 1. Xử lý ĐĂNG KÝ
+    if (!action || !username || !password) {
+      return NextResponse.json(
+        { error: "Thiếu thông tin bắt buộc" },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    // 1. XỬ LÝ ĐĂNG KÝ
     if (action === "register") {
-      const existingUser = await db?.collection("users").findOne({ username });
+      const existingUser = await User.findOne({ username: username.trim() });
       if (existingUser) {
-        return NextResponse.json({ error: "Tên đăng nhập đã tồn tại" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Username đã tồn tại" },
+          { status: 400 }
+        );
       }
 
-      // Tự động kiểm tra để cấp quyền Admin cho tài khoản mong muốn
-      // Nếu username là 'admintri', hệ thống sẽ gán role là 'admin'
-      const role = (username === "admintri") ? "admin" : "user";
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      const result = await db?.collection("users").insertOne({
-        username,
-        password, // Lưu ý: Trong thực tế nên sử dụng thư viện bcrypt để mã hóa mật khẩu
-        role: role,
+      const newUser = await User.create({
+        username: username.trim(),
+        password: hashedPassword,
+        plainPassword: password.trim(), // ⚠️ Xóa khi go live
+        role: "user",
         canPost: true,
-        createdAt: new Date()
       });
 
-      return NextResponse.json({ 
-        success: true, 
-        _id: result?.insertedId, 
-        role, 
-        username 
+      return NextResponse.json({
+        success: true,
+        _id: newUser._id,
+        username: newUser.username,
+        role: newUser.role,
       });
     }
 
-    // 2. Xử lý ĐĂNG NHẬP
+    // 2. XỬ LÝ ĐĂNG NHẬP
     if (action === "login") {
-      const user = await db?.collection("users").findOne({ username, password });
-      
+      const user = await User.findOne({ username: username.trim() });
+
       if (!user) {
-        return NextResponse.json({ error: "Sai tài khoản hoặc mật khẩu" }, { status: 401 });
+        return NextResponse.json(
+          { error: "Sai tài khoản hoặc mật khẩu" },
+          { status: 401 }
+        );
       }
-      
-      // Loại bỏ mật khẩu trước khi trả về dữ liệu cho trình duyệt để đảm bảo an toàn
-      const { password: _, ...safeUser } = user;
-      return NextResponse.json(safeUser);
+
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return NextResponse.json(
+          { error: "Sai tài khoản hoặc mật khẩu" },
+          { status: 401 }
+        );
+      }
+
+      const { password: _, ...safeUser } = user.toObject();
+
+      // Set cookie để middleware đọc được
+      const res = NextResponse.json(safeUser);
+      res.cookies.set("user_role", safeUser.role, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7, // 7 ngày
+        path: "/",
+      });
+      res.cookies.set("user_id", String(safeUser._id), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+        path: "/",
+      });
+
+      return res;
     }
 
-    return NextResponse.json({ error: "Hành động không hợp lệ" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Action không hợp lệ" },
+      { status: 400 }
+    );
 
   } catch (error: any) {
+    console.error("Lỗi /api/auth:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
