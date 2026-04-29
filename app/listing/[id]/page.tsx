@@ -32,6 +32,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
   }
 
   const allImages = [data.coverImage, ...(data.images || [])].filter(Boolean);
+  const contactPhone = data.contactPhone || "090.222.5314";
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
@@ -50,7 +51,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: "40px"
+            padding: "20px"
           }}
         >
           <div 
@@ -112,10 +113,11 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         <div style={{ 
           maxWidth: "1760px", 
           margin: "0 auto", 
-          padding: "16px 40px", 
+          padding: "12px 20px", 
           display: "flex", 
           alignItems: "center",
-          gap: "20px"
+          gap: "12px",
+          flexWrap: "wrap"
         }}>
           <button 
             onClick={() => router.back()}
@@ -128,23 +130,22 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
               borderRadius: "50%",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              transition: "background 0.2s"
+              justifyContent: "center"
             }}
           >
             ←
           </button>
           
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <Link href="/" style={{ textDecoration: "none" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <img 
                   src="https://res.cloudinary.com/df717ylr1/image/upload/v1777306437/logo_ymuon1.png" 
                   alt="Angiahouse"
-                  style={{ height: "40px", width: "auto" }}
+                  style={{ height: "32px", width: "auto" }}
                 />
                 <span style={{ 
-                  fontSize: "18px", 
+                  fontSize: "16px", 
                   fontWeight: "700", 
                   color: "#FF385C",
                   fontFamily: "system-ui, -apple-system, sans-serif",
@@ -156,9 +157,9 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
             </Link>
             
             <a 
-              href="tel:0902225314"
+              href={`tel:${contactPhone}`}
               style={{ 
-                fontSize: "14px", 
+                fontSize: "13px", 
                 fontWeight: "600", 
                 color: "#222",
                 textDecoration: "none",
@@ -166,20 +167,20 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
                 alignItems: "center",
                 gap: "4px",
                 borderLeft: "2px solid #EBEBEB",
-                paddingLeft: "16px"
+                paddingLeft: "12px"
               }}
             >
-              📞 090.222.5314
+              📞 {contactPhone}
             </a>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main style={{ maxWidth: "1120px", margin: "0 auto", padding: "24px 40px 80px" }}>
+      <main style={{ maxWidth: "1120px", margin: "0 auto", padding: "16px 20px 60px" }}>
         {/* Title */}
         <h1 style={{ 
-          fontSize: "26px", 
+          fontSize: "22px", 
           fontWeight: "600", 
           color: "#222",
           margin: "0 0 8px 0",
@@ -191,7 +192,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         <div style={{ 
           fontSize: "14px", 
           color: "#717171",
-          marginBottom: "24px",
+          marginBottom: "16px",
           display: "flex",
           alignItems: "center",
           gap: "8px"
@@ -200,7 +201,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         </div>
 
         {/* Image Gallery */}
-        <div style={{ position: "relative", marginBottom: "48px" }}>
+        <div style={{ position: "relative", marginBottom: "32px" }}>
           <div style={{ 
             borderRadius: "12px", 
             overflow: "hidden", 
@@ -278,56 +279,130 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
             onClick={() => setShowAllImages(true)}
             style={{
               position: "absolute",
-              bottom: "20px",
-              right: "20px",
-              padding: "10px 16px",
+              bottom: "12px",
+              right: "12px",
+              padding: "8px 14px",
               background: "#fff",
               border: "1px solid #222",
               borderRadius: "8px",
-              fontSize: "14px",
+              fontSize: "13px",
               fontWeight: "600",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: "8px"
+              gap: "6px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
             }}
           >
-            🖼️ Xem tất cả {allImages.length} ảnh
+            🖼️ Xem {allImages.length} ảnh
           </button>
         </div>
 
-        {/* Content Grid */}
+        {/* Content Grid - Responsive */}
         <div style={{ 
           display: "grid", 
-          gridTemplateColumns: "2fr 1fr",
-          gap: "80px"
+          gridTemplateColumns: "1fr",
+          gap: "32px"
         }}>
-          {/* Left Column - Details */}
+          {/* Contact Card - Mobile First */}
+          <div>
+            <div style={{ 
+              border: "1px solid #DDDDDD",
+              borderRadius: "12px",
+              padding: "20px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+            }}>
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "20px", fontWeight: "600", color: "#222", marginBottom: "4px" }}>
+                  {data.price?.toLocaleString()} đ
+                  <span style={{ fontSize: "15px", fontWeight: "400", color: "#717171" }}> / tháng</span>
+                </div>
+              </div>
+
+              {/* Call Button */}
+              <a 
+                href={`tel:${contactPhone}`}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "12px",
+                  background: "linear-gradient(to right, #E61E4D 0%, #E31C5F 50%, #D70466 100%)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  textDecoration: "none",
+                  marginBottom: "10px",
+                  boxSizing: "border-box"
+                }}
+              >
+                📞 Gọi: {contactPhone}
+              </a>
+
+              {/* Zalo Button */}
+              <a 
+                href={`https://zalo.me/${contactPhone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "12px",
+                  background: "#0068FF",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  textDecoration: "none",
+                  marginBottom: "12px",
+                  boxSizing: "border-box"
+                }}
+              >
+                💬 Zalo: {contactPhone}
+              </a>
+
+              <div style={{ 
+                textAlign: "center", 
+                fontSize: "13px", 
+                color: "#717171",
+                marginTop: "12px"
+              }}>
+                Liên hệ để xem nhà và đặt cọc
+              </div>
+            </div>
+          </div>
+
+          {/* Details */}
           <div>
             {/* Price Section */}
             <div style={{ 
-              paddingBottom: "32px",
+              paddingBottom: "24px",
               borderBottom: "1px solid #EBEBEB"
             }}>
-              <div style={{ fontSize: "22px", fontWeight: "600", color: "#222", marginBottom: "4px" }}>
-                {data.price?.toLocaleString()} đ
-                <span style={{ fontSize: "16px", fontWeight: "400", color: "#717171" }}> / tháng</span>
+              <div style={{ fontSize: "20px", fontWeight: "600", color: "#222" }}>
+                Giá: {data.price?.toLocaleString()} đ/tháng
               </div>
             </div>
 
             {/* Description */}
-            <div style={{ paddingTop: "32px", paddingBottom: "32px", borderBottom: "1px solid #EBEBEB" }}>
+            <div style={{ paddingTop: "24px", paddingBottom: "24px", borderBottom: "1px solid #EBEBEB" }}>
               <h2 style={{ 
-                fontSize: "22px", 
+                fontSize: "20px", 
                 fontWeight: "600", 
                 color: "#222",
-                marginBottom: "24px"
+                marginBottom: "16px"
               }}>
                 Mô tả
               </h2>
               <p style={{ 
-                fontSize: "16px",
-                lineHeight: "1.75",
+                fontSize: "15px",
+                lineHeight: "1.6",
                 color: "#222",
                 whiteSpace: "pre-wrap",
                 margin: 0
@@ -337,12 +412,12 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
             </div>
 
             {/* Additional Info */}
-            <div style={{ paddingTop: "32px" }}>
+            <div style={{ paddingTop: "24px" }}>
               <h2 style={{ 
-                fontSize: "22px", 
+                fontSize: "20px", 
                 fontWeight: "600", 
                 color: "#222",
-                marginBottom: "16px"
+                marginBottom: "12px"
               }}>
                 Thông tin thêm
               </h2>
@@ -350,98 +425,15 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
                 <div style={{ marginBottom: "8px" }}>
                   Mã tin: <span style={{ color: "#222", fontWeight: "500" }}>{data._id}</span>
                 </div>
-                <div>
+                <div style={{ marginBottom: "8px" }}>
                   Đăng bởi: <span style={{ color: "#222", fontWeight: "500" }}>
                     {data.userId ? "Thành viên" : "Khách vãng lai"}
                   </span>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Contact Card */}
-          <div>
-            <div style={{ 
-              position: "sticky",
-              top: "100px",
-              border: "1px solid #DDDDDD",
-              borderRadius: "12px",
-              padding: "24px",
-              boxShadow: "0 6px 16px rgba(0,0,0,0.12)"
-            }}>
-              <div style={{ marginBottom: "24px" }}>
-                <div style={{ fontSize: "22px", fontWeight: "600", color: "#222", marginBottom: "4px" }}>
-                  {data.price?.toLocaleString()} đ
-                  <span style={{ fontSize: "16px", fontWeight: "400", color: "#717171" }}> / tháng</span>
-                </div>
-              </div>
-
-              {/* Call Button */}
-              <a 
-                href="tel:0902225314"
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "14px",
-                  background: "linear-gradient(to right, #E61E4D 0%, #E31C5F 50%, #D70466 100%)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  textDecoration: "none",
-                  marginBottom: "12px"
-                }}
-              >
-                📞 Gọi ngay: 090.222.5314
-              </a>
-
-              {/* Zalo Button */}
-              <a 
-                href="https://zalo.me/0902225314"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "14px",
-                  background: "#0068FF",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  textDecoration: "none",
-                  marginBottom: "16px"
-                }}
-              >
-                💬 Nhắn Zalo: 090.222.5314
-              </a>
-
-              <div style={{ 
-                textAlign: "center", 
-                fontSize: "14px", 
-                color: "#717171",
-                marginTop: "16px"
-              }}>
-                Liên hệ để xem nhà và đặt cọc
-              </div>
-
-              {/* Location */}
-              <div style={{ 
-                marginTop: "24px",
-                paddingTop: "24px",
-                borderTop: "1px solid #EBEBEB"
-              }}>
-                <div style={{ fontSize: "16px", fontWeight: "600", color: "#222", marginBottom: "12px" }}>
-                  📍 Vị trí
-                </div>
-                <div style={{ fontSize: "14px", color: "#717171" }}>
-                  {data.address || "TPHCM"}
+                <div style={{ marginBottom: "8px" }}>
+                  📍 Vị trí: <span style={{ color: "#222", fontWeight: "500" }}>
+                    {data.address || "TPHCM"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -453,6 +445,23 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+
+        @media (min-width: 768px) {
+          main > div:last-child {
+            grid-template-columns: 2fr 1fr !important;
+            gap: 60px !important;
+          }
+          main > div:last-child > div:first-child {
+            order: 2;
+          }
+          main > div:last-child > div:last-child {
+            order: 1;
+          }
+          main > div:last-child > div:first-child > div {
+            position: sticky;
+            top: 100px;
+          }
         }
       `}} />
     </div>
