@@ -10,11 +10,12 @@ export default function DangTinPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [formData, setFormData] = useState({
-    title: "",
-    price: "",
-    address: "",
-    description: ""
-  });
+  title: "",
+  price: "",
+  address: "",
+  description: "",
+  contactPhone: ""  // ← thêm dòng này
+});
 
   useEffect(() => {
     if (!localStorage.getItem("device_id")) {
@@ -33,7 +34,7 @@ export default function DangTinPage() {
   }, []);
 
   useEffect(() => {
-    if (images.length > 0 || formData.title || formData.price || formData.address || formData.description) {
+    if (images.length > 0 || formData.title || formData.price || formData.address || formData.description || formData.contactPhone) {
       const draft = { formData, images, coverImage };
       localStorage.setItem("listing_draft", JSON.stringify(draft));
     }
@@ -119,6 +120,10 @@ export default function DangTinPage() {
       alert("Địa chỉ phải có ít nhất 10 ký tự!");
       return false;
     }
+    if (!formData.contactPhone || formData.contactPhone.trim().length < 10) {
+      alert("Vui lòng nhập số điện thoại hợp lệ (ít nhất 10 số)!");
+      return false;
+    }
     return true;
   };
 
@@ -136,6 +141,7 @@ export default function DangTinPage() {
       price: Number(formData.price),
       address: formData.address.trim(),
       description: formData.description.trim(),
+      contactPhone: formData.contactPhone.trim(),
       images,
       coverImage,
       deviceId: localStorage.getItem("device_id"),
@@ -169,6 +175,18 @@ export default function DangTinPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const inputStyle = {
+    width: "100%",
+    padding: "12px 16px",
+    border: "1px solid #DDDDDD",
+    borderRadius: "8px",
+    fontSize: "16px",
+    outline: "none",
+    boxSizing: "border-box" as const,
+    backgroundColor: "#fff",
+    color: "#222"
+  };
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
       <header style={{ borderBottom: "1px solid #EBEBEB", backgroundColor: "#fff" }}>
@@ -180,9 +198,9 @@ export default function DangTinPage() {
                 alt="Angiahouse"
                 style={{ height: "40px", width: "auto" }}
               />
-              <div style={{ fontSize: "16px", fontWeight: "600", color: "#FF385C", borderLeft: "2px solid #EBEBEB", paddingLeft: "16px" }}>
-                📞 090.222.5314
-              </div>
+              <span style={{ fontSize: "18px", fontWeight: "700", color: "#FF385C", letterSpacing: "-0.5px" }}>
+                ANGIAHOUSE
+              </span>
             </div>
           </Link>
         </div>
@@ -239,7 +257,6 @@ export default function DangTinPage() {
               </p>
             </label>
 
-            {/* Preview Images */}
             {images.length > 0 && (
               <div style={{ marginTop: "24px" }}>
                 <p style={{ fontSize: "14px", color: "#717171", marginBottom: "12px" }}>
@@ -278,34 +295,108 @@ export default function DangTinPage() {
             <label style={{ display: "block", fontSize: "16px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
               Tiêu đề * <span style={{ fontSize: "14px", fontWeight: "400", color: "#717171" }}>({formData.title.length}/100)</span>
             </label>
-            <input name="title" value={formData.title} onChange={(e) => handleInputChange("title", e.target.value)} placeholder="VD: Phòng trọ 25m² gần ĐH Bách Khoa, đầy đủ nội thất" required maxLength={100} style={{ width: "100%", padding: "12px 16px", border: "1px solid #DDDDDD", borderRadius: "8px", fontSize: "16px", outline: "none", boxSizing: "border-box" }} />
+            <input 
+              name="title" 
+              value={formData.title} 
+              onChange={(e) => handleInputChange("title", e.target.value)} 
+              placeholder="VD: Phòng trọ 25m² gần ĐH Bách Khoa, đầy đủ nội thất" 
+              required 
+              maxLength={100} 
+              style={inputStyle}
+            />
           </div>
 
           <div>
             <label style={{ display: "block", fontSize: "16px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
               Giá thuê (VNĐ/tháng) *
             </label>
-            <input name="price" type="number" value={formData.price} onChange={(e) => handleInputChange("price", e.target.value)} placeholder="VD: 3000000" required min="100000" max="100000000" step="100000" style={{ width: "100%", padding: "12px 16px", border: "1px solid #DDDDDD", borderRadius: "8px", fontSize: "16px", outline: "none", boxSizing: "border-box" }} />
+            <input 
+              name="price" 
+              type="number" 
+              value={formData.price} 
+              onChange={(e) => handleInputChange("price", e.target.value)} 
+              placeholder="VD: 3000000" 
+              required 
+              min="100000" 
+              max="100000000" 
+              step="100000" 
+              style={inputStyle}
+            />
             {formData.price && (
-              <p style={{ fontSize: "14px", color: "#717171", marginTop: "8px", margin: "8px 0 0 0" }}>
+              <p style={{ fontSize: "14px", color: "#717171", margin: "8px 0 0 0" }}>
                 ≈ {Number(formData.price).toLocaleString()} đ/tháng
               </p>
             )}
           </div>
 
           <div>
-            <label style={{ display: "block", fontSize: "16px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>Địa chỉ *</label>
-            <input name="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="VD: 123 Lý Thường Kiệt, Quận 10, TPHCM" required style={{ width: "100%", padding: "12px 16px", border: "1px solid #DDDDDD", borderRadius: "8px", fontSize: "16px", outline: "none", boxSizing: "border-box" }} />
+            <label style={{ display: "block", fontSize: "16px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
+              Địa chỉ *
+            </label>
+            <input 
+              name="address" 
+              value={formData.address} 
+              onChange={(e) => handleInputChange("address", e.target.value)} 
+              placeholder="VD: 123 Lý Thường Kiệt, Quận 10, TPHCM" 
+              required 
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: "16px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
+              Số điện thoại liên hệ *
+            </label>
+            <input 
+              name="contactPhone" 
+              type="tel"
+              value={formData.contactPhone} 
+              onChange={(e) => handleInputChange("contactPhone", e.target.value)} 
+              placeholder="VD: 0901234567" 
+              required 
+              minLength={10}
+              maxLength={11}
+              pattern="[0-9]{10,11}"
+              style={inputStyle}
+            />
+            <p style={{ fontSize: "13px", color: "#717171", margin: "6px 0 0 0" }}>
+              Số điện thoại này sẽ hiển thị cho người xem tin
+            </p>
           </div>
 
           <div>
             <label style={{ display: "block", fontSize: "16px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
               Mô tả <span style={{ fontSize: "14px", fontWeight: "400", color: "#717171" }}>({formData.description.length}/1000)</span>
             </label>
-            <textarea name="description" value={formData.description} onChange={(e) => handleInputChange("description", e.target.value)} placeholder="Mô tả chi tiết về phòng trọ..." rows={6} maxLength={1000} style={{ width: "100%", padding: "12px 16px", border: "1px solid #DDDDDD", borderRadius: "8px", fontSize: "16px", outline: "none", boxSizing: "border-box", fontFamily: "system-ui, sans-serif", resize: "vertical" }} />
+            <textarea 
+              name="description" 
+              value={formData.description} 
+              onChange={(e) => handleInputChange("description", e.target.value)} 
+              placeholder="Mô tả chi tiết về phòng trọ: diện tích, nội thất, tiện ích..." 
+              rows={6} 
+              maxLength={1000} 
+              style={{
+                ...inputStyle,
+                fontFamily: "system-ui, sans-serif",
+                resize: "vertical" as const
+              }}
+            />
           </div>
 
-          <button type="submit" disabled={isSubmitting || images.length === 0 || uploadingCount > 0} style={{ padding: "14px", background: (isSubmitting || images.length === 0 || uploadingCount > 0) ? "#E0E0E0" : "linear-gradient(to right, #E61E4D 0%, #E31C5F 50%, #D70466 100%)", color: "#fff", border: "none", borderRadius: "8px", fontSize: "16px", fontWeight: "600", cursor: (isSubmitting || images.length === 0 || uploadingCount > 0) ? "not-allowed" : "pointer" }}>
+          <button 
+            type="submit" 
+            disabled={isSubmitting || images.length === 0 || uploadingCount > 0} 
+            style={{ 
+              padding: "14px", 
+              background: (isSubmitting || images.length === 0 || uploadingCount > 0) ? "#E0E0E0" : "linear-gradient(to right, #E61E4D 0%, #E31C5F 50%, #D70466 100%)", 
+              color: "#fff", 
+              border: "none", 
+              borderRadius: "8px", 
+              fontSize: "16px", 
+              fontWeight: "600", 
+              cursor: (isSubmitting || images.length === 0 || uploadingCount > 0) ? "not-allowed" : "pointer" 
+            }}
+          >
             {isSubmitting ? "Đang đăng tin..." : uploadingCount > 0 ? `Đang tải ${uploadingCount} ảnh...` : "Đăng tin"}
           </button>
         </form>

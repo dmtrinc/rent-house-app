@@ -44,7 +44,8 @@ const listingSchema = new Schema(
     },
     contactPhone: {
       type: String,
-      default: ""
+      required: [true, "Vui long nhap so dien thoai"],
+      trim: true
     },
     deviceId: {
       type: String,
