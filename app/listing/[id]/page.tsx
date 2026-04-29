@@ -32,7 +32,6 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
   }
 
   const allImages = [data.coverImage, ...(data.images || [])].filter(Boolean);
-  const contactPhone = data.contactPhone || "090.222.5314";
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
@@ -157,7 +156,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
             </Link>
             
             <a 
-              href={`tel:${contactPhone}`}
+              href="tel:0902225314"
               style={{ 
                 fontSize: "13px", 
                 fontWeight: "600", 
@@ -170,7 +169,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
                 paddingLeft: "12px"
               }}
             >
-              📞 {contactPhone}
+              📞 090.222.5314
             </a>
           </div>
         </div>
@@ -299,87 +298,13 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         </div>
 
         {/* Content Grid - Responsive */}
-        <div style={{ 
+        <div className="content-grid" style={{ 
           display: "grid", 
           gridTemplateColumns: "1fr",
           gap: "32px"
         }}>
-          {/* Contact Card - Mobile First */}
-          <div>
-            <div style={{ 
-              border: "1px solid #DDDDDD",
-              borderRadius: "12px",
-              padding: "20px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-            }}>
-              <div style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "20px", fontWeight: "600", color: "#222", marginBottom: "4px" }}>
-                  {data.price?.toLocaleString()} đ
-                  <span style={{ fontSize: "15px", fontWeight: "400", color: "#717171" }}> / tháng</span>
-                </div>
-              </div>
-
-              {/* Call Button */}
-              <a 
-                href={`tel:${contactPhone}`}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "12px",
-                  background: "linear-gradient(to right, #E61E4D 0%, #E31C5F 50%, #D70466 100%)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontSize: "15px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  textDecoration: "none",
-                  marginBottom: "10px",
-                  boxSizing: "border-box"
-                }}
-              >
-                📞 Gọi: {contactPhone}
-              </a>
-
-              {/* Zalo Button */}
-              <a 
-                href={`https://zalo.me/${contactPhone.replace(/\D/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "12px",
-                  background: "#0068FF",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontSize: "15px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  textDecoration: "none",
-                  marginBottom: "12px",
-                  boxSizing: "border-box"
-                }}
-              >
-                💬 Zalo: {contactPhone}
-              </a>
-
-              <div style={{ 
-                textAlign: "center", 
-                fontSize: "13px", 
-                color: "#717171",
-                marginTop: "12px"
-              }}>
-                Liên hệ để xem nhà và đặt cọc
-              </div>
-            </div>
-          </div>
-
-          {/* Details */}
-          <div>
+          {/* Details - Order 1 on mobile, 2 on desktop */}
+          <div className="details-section" style={{ order: 1 }}>
             {/* Price Section */}
             <div style={{ 
               paddingBottom: "24px",
@@ -411,6 +336,28 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
               </p>
             </div>
 
+            {/* Contact Phone from Listing */}
+            {data.contactPhone && (
+              <div style={{ paddingTop: "24px", paddingBottom: "24px", borderBottom: "1px solid #EBEBEB" }}>
+                <h2 style={{ 
+                  fontSize: "20px", 
+                  fontWeight: "600", 
+                  color: "#222",
+                  marginBottom: "16px"
+                }}>
+                  Liên hệ chủ nhà
+                </h2>
+                <p style={{ 
+                  fontSize: "15px",
+                  lineHeight: "1.6",
+                  color: "#222",
+                  margin: 0
+                }}>
+                  Số điện thoại: <a href={`tel:${data.contactPhone}`} style={{ color: "#FF385C", fontWeight: "600", textDecoration: "none" }}>{data.contactPhone}</a>
+                </p>
+              </div>
+            )}
+
             {/* Additional Info */}
             <div style={{ paddingTop: "24px" }}>
               <h2 style={{ 
@@ -438,6 +385,80 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
               </div>
             </div>
           </div>
+
+          {/* Contact Card - Order 2 on mobile, 1 on desktop */}
+          <div className="contact-section" style={{ order: 2 }}>
+            <div style={{ 
+              border: "1px solid #DDDDDD",
+              borderRadius: "12px",
+              padding: "20px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+            }}>
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "20px", fontWeight: "600", color: "#222", marginBottom: "4px" }}>
+                  {data.price?.toLocaleString()} đ
+                  <span style={{ fontSize: "15px", fontWeight: "400", color: "#717171" }}> / tháng</span>
+                </div>
+              </div>
+
+              {/* Call Button */}
+              <a 
+                href="tel:0902225314"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "12px",
+                  background: "linear-gradient(to right, #E61E4D 0%, #E31C5F 50%, #D70466 100%)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  textDecoration: "none",
+                  marginBottom: "10px",
+                  boxSizing: "border-box"
+                }}
+              >
+                📞 Gọi: 090.222.5314
+              </a>
+
+              {/* Zalo Button */}
+              <a 
+                href="https://zalo.me/0902225314"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "12px",
+                  background: "#0068FF",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  textDecoration: "none",
+                  marginBottom: "12px",
+                  boxSizing: "border-box"
+                }}
+              >
+                💬 Zalo: 090.222.5314
+              </a>
+
+              <div style={{ 
+                textAlign: "center", 
+                fontSize: "13px", 
+                color: "#717171",
+                marginTop: "12px"
+              }}>
+                Liên hệ để xem nhà và đặt cọc
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -448,17 +469,17 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         }
 
         @media (min-width: 768px) {
-          main > div:last-child {
+          .content-grid {
             grid-template-columns: 2fr 1fr !important;
             gap: 60px !important;
           }
-          main > div:last-child > div:first-child {
-            order: 2;
+          .details-section {
+            order: 1 !important;
           }
-          main > div:last-child > div:last-child {
-            order: 1;
+          .contact-section {
+            order: 2 !important;
           }
-          main > div:last-child > div:first-child > div {
+          .contact-section > div {
             position: sticky;
             top: 100px;
           }

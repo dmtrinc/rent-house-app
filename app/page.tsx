@@ -59,12 +59,12 @@ export default function HomePage() {
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
       {/* Header */}
       <header style={{ 
-        borderBottom: "1px solid #EBEBEB", 
+        borderBottom: "1px solid #004d26",
         position: "sticky", 
         top: 0, 
-        backgroundColor: "#fff", 
+        backgroundColor: "#006633",
         zIndex: 100,
-        boxShadow: "0 1px 0 rgba(0,0,0,0.08)"
+        boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
       }}>
         <div style={{ 
           maxWidth: "1760px", 
@@ -81,14 +81,14 @@ export default function HomePage() {
             <Link href="/" style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <img 
-                  src="https://res.cloudinary.com/df717ylr1/image/upload/v1777306437/logo_ymuon1.png" 
+                  src="https://res.cloudinary.com/df717ylr1/image/upload/v1777485110/logo_an_gia_house_c600o8.png" 
                   alt="Angiahouse"
                   style={{ height: "32px", width: "auto" }}
                 />
                 <span style={{ 
                   fontSize: "16px", 
                   fontWeight: "700", 
-                  color: "#FF385C",
+                  color: "#fff",
                   fontFamily: "system-ui, -apple-system, sans-serif",
                   letterSpacing: "-0.5px"
                 }}>
@@ -102,16 +102,16 @@ export default function HomePage() {
               style={{ 
                 fontSize: "13px", 
                 fontWeight: "600", 
-                color: "#222",
+                color: "#fff",
                 textDecoration: "none",
                 display: "flex",
                 alignItems: "center",
                 gap: "4px",
-                borderLeft: "2px solid #EBEBEB",
+                borderLeft: "2px solid rgba(255,255,255,0.3)",
                 paddingLeft: "12px"
               }}
             >
-              📞 090.222.5314
+              <span style={{ color: "#fff" }}>📞</span> 090.222.5314
             </a>
           </div>
 
@@ -120,9 +120,9 @@ export default function HomePage() {
             {!systemConfig.globalPostEnabled && (
               <span style={{ 
                 fontSize: "12px", 
-                color: "#717171", 
+                color: "#fff", 
                 padding: "6px 10px", 
-                background: "#F7F7F7", 
+                background: "rgba(255,255,255,0.2)", 
                 borderRadius: "22px",
                 whiteSpace: "nowrap"
               }}>
@@ -156,8 +156,9 @@ export default function HomePage() {
               style={{ 
                 padding: "6px 12px", 
                 borderRadius: "22px", 
-                background: (systemConfig.globalPostEnabled && user?.canPost !== false) ? "#FF385C" : "#E0E0E0",
-                color: "#fff", 
+                background: (systemConfig.globalPostEnabled && user?.canPost !== false) ? "#FFD966" : "rgba(255,255,255,0.3)",
+color: (systemConfig.globalPostEnabled && user?.canPost !== false) ? "#006633" : "#fff",
+                //color: "#fff", 
                 textDecoration: "none", 
                 fontSize: "13px", 
                 fontWeight: "600",
@@ -173,12 +174,13 @@ export default function HomePage() {
                 alignItems: "center", 
                 gap: "8px", 
                 padding: "4px 4px 4px 10px", 
-                border: "1px solid #DDDDDD", 
-                borderRadius: "21px"
+                border: "1px solid rgba(255,255,255,0.3)", 
+                borderRadius: "21px",
+                background: "rgba(255,255,255,0.1)"
               }}>
                 <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#222" }}>{user.username}</div>
-                  <div style={{ fontSize: "11px", color: "#717171" }}>{user.role}</div>
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>{user.username}</div>
+                  <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)" }}>{user.role}</div>
                 </div>
                 <button 
                   onClick={handleLogout}
@@ -186,7 +188,7 @@ export default function HomePage() {
                     width: "28px", 
                     height: "28px", 
                     borderRadius: "50%", 
-                    background: "#717171", 
+                    background: "rgba(255,255,255,0.2)", 
                     color: "#fff", 
                     border: "none", 
                     fontSize: "14px",
@@ -203,12 +205,12 @@ export default function HomePage() {
               <Link href="/login" style={{ 
                 padding: "6px 12px", 
                 borderRadius: "22px", 
-                border: "1px solid #DDDDDD", 
-                color: "#222", 
+                border: "1px solid rgba(255,255,255,0.3)", 
+                color: "#fff", 
                 textDecoration: "none", 
                 fontSize: "13px", 
                 fontWeight: "600",
-                background: "#fff",
+                background: "rgba(255,255,255,0.1)",
                 whiteSpace: "nowrap"
               }}>
                 Đăng nhập
@@ -226,7 +228,7 @@ export default function HomePage() {
               width: "40px", 
               height: "40px", 
               border: "4px solid #f3f3f3", 
-              borderTop: "4px solid #FF385C", 
+              borderTop: "4px solid #2B4A76", 
               borderRadius: "50%", 
               margin: "0 auto 20px",
               animation: "spin 1s linear infinite"
@@ -375,8 +377,8 @@ export default function HomePage() {
               display: "inline-block",
               padding: "12px 20px", 
               borderRadius: "8px", 
-              background: "#FF385C", 
-              color: "#fff", 
+              background: "#FFD966",
+color: "#006633",
               textDecoration: "none", 
               fontSize: "15px", 
               fontWeight: "600"
