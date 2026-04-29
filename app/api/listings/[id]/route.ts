@@ -1,41 +1,81 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import { cookies } from "next/headers";
 
-// GET: Lấy chi tiết tin (Công khai)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const conn = await connectDB();
-    const listing = await conn.connection.db?.collection("listings").findOne({ 
-      _id: new ObjectId(id) 
+    const listing = await conn.connection.db?.collection("listings").findOne({
+      _id: new ObjectId(id)
     });
-
-    if (!listing) return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
+    if (!listing) return NextResponse.json({ error: "Khong tim thay" }, { status: 404 });
     return NextResponse.json(listing);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// PATCH: Cập nhật nội dung (Có bảo mật ở tầng Edit Page)
+async function checkOwnership(listing: any, body: any): Promise<boolean> {
+  const cookieStore = await cookies();
+  const userRole = cookieStore.get("user_role")?.value;
+  const userId = cookieStore.get("user_id")?.value;
+  const { deviceId } = body;
+
+  if (userRole === "admin") return true;
+  if (userId && listing.userId && String(listing.userId) === String(userId)) return true;
+  if (deviceId && listing.deviceId && listing.deviceId === deviceId) return true;
+  return false;
+}
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await req.json();
     const conn = await connectDB();
-    
-    // Tách action ẩn/hiện của Admin
-    const { role, action, ...updateData } = body;
-    const updateQuery = action 
-      ? { $set: { status: action } } 
+    const db = conn.connection.db;
+
+    const listing = await db?.collection("listings").findOne({ _id: new ObjectId(id) });
+    if (!listing) return NextResponse.json({ error: "Khong tim thay tin" }, { status: 404 });
+
+    const hasPermission = await checkOwnership(listing, body);
+    if (!hasPermission) {
+      return NextResponse.json({ error: "Khong co quyen chinh sua tin nay" }, { status: 403 });
+    }
+
+    const { action, deviceId, userId, ...updateData } = body;
+    const updateQuery = action
+      ? { $set: { status: action } }
       : { $set: { ...updateData, updatedAt: new Date() } };
 
-    await conn.connection.db?.collection("listings").updateOne(
+    await db?.collection("listings").updateOne(
       { _id: new ObjectId(id) },
       updateQuery
     );
 
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const conn = await connectDB();
+    const db = conn.connection.db;
+
+    const listing = await db?.collection("listings").findOne({ _id: new ObjectId(id) });
+    if (!listing) return NextResponse.json({ error: "Khong tim thay tin" }, { status: 404 });
+
+    const hasPermission = await checkOwnership(listing, body);
+    if (!hasPermission) {
+      return NextResponse.json({ error: "Khong co quyen xoa tin nay" }, { status: 403 });
+    }
+
+    await db?.collection("listings").deleteOne({ _id: new ObjectId(id) });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
