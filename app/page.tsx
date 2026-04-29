@@ -69,22 +69,24 @@ export default function HomePage() {
         <div style={{ 
           maxWidth: "1760px", 
           margin: "0 auto", 
-          padding: "16px 40px", 
+          padding: "12px 20px", 
           display: "flex", 
           justifyContent: "space-between", 
-          alignItems: "center" 
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px"
         }}>
           {/* Logo + Brand + Phone */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <Link href="/" style={{ textDecoration: "none" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <img 
                   src="https://res.cloudinary.com/df717ylr1/image/upload/v1777306437/logo_ymuon1.png" 
                   alt="Angiahouse"
-                  style={{ height: "40px", width: "auto" }}
+                  style={{ height: "32px", width: "auto" }}
                 />
                 <span style={{ 
-                  fontSize: "18px", 
+                  fontSize: "16px", 
                   fontWeight: "700", 
                   color: "#FF385C",
                   fontFamily: "system-ui, -apple-system, sans-serif",
@@ -98,7 +100,7 @@ export default function HomePage() {
             <a 
               href="tel:0902225314"
               style={{ 
-                fontSize: "14px", 
+                fontSize: "13px", 
                 fontWeight: "600", 
                 color: "#222",
                 textDecoration: "none",
@@ -106,7 +108,7 @@ export default function HomePage() {
                 alignItems: "center",
                 gap: "4px",
                 borderLeft: "2px solid #EBEBEB",
-                paddingLeft: "16px"
+                paddingLeft: "12px"
               }}
             >
               📞 090.222.5314
@@ -114,29 +116,30 @@ export default function HomePage() {
           </div>
 
           {/* Right menu */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             {!systemConfig.globalPostEnabled && (
               <span style={{ 
-                fontSize: "13px", 
+                fontSize: "12px", 
                 color: "#717171", 
-                padding: "8px 12px", 
+                padding: "6px 10px", 
                 background: "#F7F7F7", 
-                borderRadius: "22px" 
+                borderRadius: "22px",
+                whiteSpace: "nowrap"
               }}>
-                Đang bảo trì
+                Bảo trì
               </span>
             )}
 
             {user?.role === "admin" && (
               <Link href="/admin" style={{ 
-                padding: "8px 16px", 
+                padding: "6px 12px", 
                 borderRadius: "22px", 
                 background: "#FF385C", 
                 color: "#fff", 
                 textDecoration: "none", 
-                fontSize: "14px", 
+                fontSize: "13px", 
                 fontWeight: "600",
-                transition: "transform 0.1s",
+                whiteSpace: "nowrap"
               }}>
                 Quản trị
               </Link>
@@ -151,14 +154,14 @@ export default function HomePage() {
                 }
               }}
               style={{ 
-                padding: "8px 16px", 
+                padding: "6px 12px", 
                 borderRadius: "22px", 
                 background: (systemConfig.globalPostEnabled && user?.canPost !== false) ? "#FF385C" : "#E0E0E0",
                 color: "#fff", 
                 textDecoration: "none", 
-                fontSize: "14px", 
+                fontSize: "13px", 
                 fontWeight: "600",
-                transition: "transform 0.1s",
+                whiteSpace: "nowrap"
               }}
             >
               Đăng tin
@@ -168,26 +171,25 @@ export default function HomePage() {
               <div style={{ 
                 display: "flex", 
                 alignItems: "center", 
-                gap: "12px", 
-                padding: "6px 6px 6px 12px", 
+                gap: "8px", 
+                padding: "4px 4px 4px 10px", 
                 border: "1px solid #DDDDDD", 
-                borderRadius: "21px",
-                cursor: "pointer"
+                borderRadius: "21px"
               }}>
                 <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: "14px", fontWeight: "600", color: "#222" }}>{user.username}</div>
-                  <div style={{ fontSize: "12px", color: "#717171" }}>{user.role}</div>
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#222" }}>{user.username}</div>
+                  <div style={{ fontSize: "11px", color: "#717171" }}>{user.role}</div>
                 </div>
                 <button 
                   onClick={handleLogout}
                   style={{ 
-                    width: "32px", 
-                    height: "32px", 
+                    width: "28px", 
+                    height: "28px", 
                     borderRadius: "50%", 
                     background: "#717171", 
                     color: "#fff", 
                     border: "none", 
-                    fontSize: "16px",
+                    fontSize: "14px",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -199,14 +201,15 @@ export default function HomePage() {
               </div>
             ) : (
               <Link href="/login" style={{ 
-                padding: "8px 16px", 
+                padding: "6px 12px", 
                 borderRadius: "22px", 
                 border: "1px solid #DDDDDD", 
                 color: "#222", 
                 textDecoration: "none", 
-                fontSize: "14px", 
+                fontSize: "13px", 
                 fontWeight: "600",
-                background: "#fff"
+                background: "#fff",
+                whiteSpace: "nowrap"
               }}>
                 Đăng nhập
               </Link>
@@ -216,9 +219,9 @@ export default function HomePage() {
       </header>
 
       {/* Main content */}
-      <main style={{ maxWidth: "1760px", margin: "0 auto", padding: "40px 40px 80px" }}>
+      <main style={{ maxWidth: "1760px", margin: "0 auto", padding: "24px 20px 60px" }}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: "100px 20px" }}>
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ 
               width: "40px", 
               height: "40px", 
@@ -233,8 +236,8 @@ export default function HomePage() {
         ) : items.length > 0 ? (
           <div style={{ 
             display: "grid", 
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", 
-            gap: "40px 24px"
+            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", 
+            gap: "24px"
           }}>
             {items.map((item) => {
               if (user?.role !== "admin" && item.status === "hide") return null;
@@ -282,25 +285,17 @@ export default function HomePage() {
                     </div>
 
                     <div>
-                      <div style={{ 
-                        display: "flex", 
-                        justifyContent: "space-between", 
-                        alignItems: "flex-start",
-                        marginBottom: "4px"
+                      <h3 style={{ 
+                        fontSize: "15px", 
+                        fontWeight: "400", 
+                        color: "#222",
+                        margin: "0 0 4px 0",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
                       }}>
-                        <h3 style={{ 
-                          fontSize: "15px", 
-                          fontWeight: "400", 
-                          color: "#222",
-                          margin: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          flex: 1
-                        }}>
-                          {item.address || "TPHCM"}
-                        </h3>
-                      </div>
+                        {item.address || "TPHCM"}
+                      </h3>
                       
                       <p style={{ 
                         fontSize: "14px", 
@@ -326,7 +321,7 @@ export default function HomePage() {
                           fontWeight: "400", 
                           color: "#717171"
                         }}>
-                          {" "}/ tháng
+                          / tháng
                         </span>
                       </div>
                     </div>
@@ -365,25 +360,25 @@ export default function HomePage() {
         ) : (
           <div style={{ 
             textAlign: "center", 
-            padding: "120px 40px",
+            padding: "80px 20px",
             maxWidth: "600px",
             margin: "0 auto"
           }}>
             <div style={{ fontSize: "48px", marginBottom: "24px" }}>🏘️</div>
-            <h2 style={{ fontSize: "22px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
+            <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
               Chưa có tin đăng nào
             </h2>
-            <p style={{ fontSize: "16px", color: "#717171", marginBottom: "32px" }}>
+            <p style={{ fontSize: "15px", color: "#717171", marginBottom: "32px" }}>
               Hãy là người đầu tiên đăng tin cho thuê nhà
             </p>
             <Link href="/dang-tin" style={{ 
               display: "inline-block",
-              padding: "14px 24px", 
+              padding: "12px 20px", 
               borderRadius: "8px", 
               background: "#FF385C", 
               color: "#fff", 
               textDecoration: "none", 
-              fontSize: "16px", 
+              fontSize: "15px", 
               fontWeight: "600"
             }}>
               Đăng tin ngay
