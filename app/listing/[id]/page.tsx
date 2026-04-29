@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function ListingDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [data, setData] = useState<any>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showAllImages, setShowAllImages] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -35,6 +35,71 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
+      {/* Image Gallery Modal */}
+      {showAllImages && (
+        <div 
+          onClick={() => setShowAllImages(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.95)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "40px"
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "1200px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              position: "relative"
+            }}
+          >
+            <button
+              onClick={() => setShowAllImages(false)}
+              style={{
+                position: "sticky",
+                top: "20px",
+                left: "100%",
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                background: "#fff",
+                border: "none",
+                fontSize: "24px",
+                cursor: "pointer",
+                zIndex: 10,
+                marginBottom: "20px"
+              }}
+            >
+              ×
+            </button>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
+              {allImages.map((img: string, i: number) => (
+                <img 
+                  key={i}
+                  src={img} 
+                  style={{ 
+                    width: "100%", 
+                    borderRadius: "8px"
+                  }} 
+                  alt={`${data.title} - Ảnh ${i + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header style={{ 
         borderBottom: "1px solid #EBEBEB", 
@@ -69,25 +134,44 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
           >
             ←
           </button>
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <img 
-                src="https://res.cloudinary.com/df717ylr1/image/upload/v1777306437/logo_ymuon1.png" 
-                alt="Angiahouse"
-                style={{ height: "40px", width: "auto" }}
-              />
-              <div style={{ 
-                fontSize: "16px", 
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <Link href="/" style={{ textDecoration: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                <img 
+                  src="https://res.cloudinary.com/df717ylr1/image/upload/v1777306437/logo_ymuon1.png" 
+                  alt="Angiahouse"
+                  style={{ height: "40px", width: "auto" }}
+                />
+                <span style={{ 
+                  fontSize: "18px", 
+                  fontWeight: "700", 
+                  color: "#FF385C",
+                  fontFamily: "system-ui, -apple-system, sans-serif",
+                  letterSpacing: "-0.5px"
+                }}>
+                  ANGIAHOUSE
+                </span>
+              </div>
+            </Link>
+            
+            <a 
+              href="tel:0902225314"
+              style={{ 
+                fontSize: "14px", 
                 fontWeight: "600", 
-                color: "#FF385C",
-                fontFamily: "system-ui, -apple-system, sans-serif",
+                color: "#222",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
                 borderLeft: "2px solid #EBEBEB",
                 paddingLeft: "16px"
-              }}>
-                📞 090.222.5314
-              </div>
-            </div>
-          </Link>
+              }}
+            >
+              📞 090.222.5314
+            </a>
+          </div>
         </div>
       </header>
 
@@ -116,71 +200,100 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
         </div>
 
         {/* Image Gallery */}
-        <div style={{ 
-          borderRadius: "12px", 
-          overflow: "hidden", 
-          marginBottom: "48px",
-          display: "grid",
-          gridTemplateColumns: allImages.length > 1 ? "2fr 1fr" : "1fr",
-          gap: "8px",
-          maxHeight: "600px"
-        }}>
-          {/* Main Image */}
-          <div style={{ position: "relative", height: "100%" }}>
-            <img 
-              src={allImages[0]} 
-              style={{ 
-                width: "100%", 
-                height: "100%", 
-                objectFit: "cover",
-                cursor: "pointer"
-              }} 
-              alt={data.title}
-            />
+        <div style={{ position: "relative", marginBottom: "48px" }}>
+          <div style={{ 
+            borderRadius: "12px", 
+            overflow: "hidden", 
+            display: "grid",
+            gridTemplateColumns: allImages.length > 1 ? "2fr 1fr" : "1fr",
+            gap: "8px",
+            maxHeight: "600px"
+          }}>
+            {/* Main Image */}
+            <div style={{ position: "relative", height: "100%" }}>
+              <img 
+                src={allImages[0]} 
+                style={{ 
+                  width: "100%", 
+                  height: "100%", 
+                  objectFit: "cover",
+                  cursor: "pointer"
+                }} 
+                alt={data.title}
+                onClick={() => setShowAllImages(true)}
+              />
+            </div>
+
+            {/* Side Images Grid */}
+            {allImages.length > 1 && (
+              <div style={{ 
+                display: "grid", 
+                gridTemplateRows: "1fr 1fr",
+                gap: "8px",
+                height: "100%"
+              }}>
+                {allImages.slice(1, 5).map((img: string, i: number) => (
+                  <div key={i} style={{ position: "relative", overflow: "hidden" }}>
+                    <img 
+                      src={img} 
+                      style={{ 
+                        width: "100%", 
+                        height: "100%", 
+                        objectFit: "cover",
+                        cursor: "pointer"
+                      }} 
+                      alt={`${data.title} - ${i + 2}`}
+                      onClick={() => setShowAllImages(true)}
+                    />
+                    {i === 3 && allImages.length > 5 && (
+                      <div 
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: "rgba(0,0,0,0.5)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontSize: "18px",
+                          fontWeight: "600",
+                          cursor: "pointer"
+                        }}
+                        onClick={() => setShowAllImages(true)}
+                      >
+                        +{allImages.length - 5} ảnh
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Side Images Grid */}
-          {allImages.length > 1 && (
-            <div style={{ 
-              display: "grid", 
-              gridTemplateRows: "1fr 1fr",
-              gap: "8px",
-              height: "100%"
-            }}>
-              {allImages.slice(1, 5).map((img: string, i: number) => (
-                <div key={i} style={{ position: "relative", overflow: "hidden" }}>
-                  <img 
-                    src={img} 
-                    style={{ 
-                      width: "100%", 
-                      height: "100%", 
-                      objectFit: "cover",
-                      cursor: "pointer"
-                    }} 
-                    alt={`${data.title} - ${i + 2}`}
-                  />
-                  {i === 3 && allImages.length > 5 && (
-                    <div style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: "rgba(0,0,0,0.5)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontSize: "18px",
-                      fontWeight: "600"
-                    }}>
-                      +{allImages.length - 5} ảnh
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Show All Photos Button */}
+          <button
+            onClick={() => setShowAllImages(true)}
+            style={{
+              position: "absolute",
+              bottom: "20px",
+              right: "20px",
+              padding: "10px 16px",
+              background: "#fff",
+              border: "1px solid #222",
+              borderRadius: "8px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
+            }}
+          >
+            🖼️ Xem tất cả {allImages.length} ảnh
+          </button>
         </div>
 
         {/* Content Grid */}
@@ -263,6 +376,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
                 </div>
               </div>
 
+              {/* Call Button */}
               <a 
                 href="tel:0902225314"
                 style={{
@@ -278,10 +392,34 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
                   cursor: "pointer",
                   textAlign: "center",
                   textDecoration: "none",
-                  marginBottom: "16px"
+                  marginBottom: "12px"
                 }}
               >
                 📞 Gọi ngay: 090.222.5314
+              </a>
+
+              {/* Zalo Button */}
+              <a 
+                href="https://zalo.me/0902225314"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "14px",
+                  background: "#0068FF",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  textDecoration: "none",
+                  marginBottom: "16px"
+                }}
+              >
+                💬 Nhắn Zalo: 090.222.5314
               </a>
 
               <div style={{ 

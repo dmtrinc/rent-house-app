@@ -57,7 +57,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
-      {/* Header - Airbnb style */}
+      {/* Header */}
       <header style={{ 
         borderBottom: "1px solid #EBEBEB", 
         position: "sticky", 
@@ -74,26 +74,44 @@ export default function HomePage() {
           justifyContent: "space-between", 
           alignItems: "center" 
         }}>
-          {/* Logo + Phone */}
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <img 
-                src="https://res.cloudinary.com/df717ylr1/image/upload/v1777306437/logo_ymuon1.png" 
-                alt="Angiahouse"
-                style={{ height: "40px", width: "auto" }}
-              />
-              <div style={{ 
-                fontSize: "16px", 
+          {/* Logo + Brand + Phone */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <Link href="/" style={{ textDecoration: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                <img 
+                  src="https://res.cloudinary.com/df717ylr1/image/upload/v1777306437/logo_ymuon1.png" 
+                  alt="Angiahouse"
+                  style={{ height: "40px", width: "auto" }}
+                />
+                <span style={{ 
+                  fontSize: "18px", 
+                  fontWeight: "700", 
+                  color: "#FF385C",
+                  fontFamily: "system-ui, -apple-system, sans-serif",
+                  letterSpacing: "-0.5px"
+                }}>
+                  ANGIAHOUSE
+                </span>
+              </div>
+            </Link>
+            
+            <a 
+              href="tel:0902225314"
+              style={{ 
+                fontSize: "14px", 
                 fontWeight: "600", 
-                color: "#FF385C",
-                fontFamily: "system-ui, -apple-system, sans-serif",
+                color: "#222",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
                 borderLeft: "2px solid #EBEBEB",
                 paddingLeft: "16px"
-              }}>
-                ANGIAHOUSE 📞 090.222.5314
-              </div>
-            </div>
-          </Link>
+              }}
+            >
+              📞 090.222.5314
+            </a>
+          </div>
 
           {/* Right menu */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -225,7 +243,6 @@ export default function HomePage() {
               return (
                 <div key={item._id} style={{ position: "relative" }}>
                   <Link href={`/listing/${item._id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                    {/* Image */}
                     <div style={{ 
                       position: "relative", 
                       width: "100%", 
@@ -264,7 +281,6 @@ export default function HomePage() {
                       )}
                     </div>
 
-                    {/* Info */}
                     <div>
                       <div style={{ 
                         display: "flex", 
@@ -316,7 +332,6 @@ export default function HomePage() {
                     </div>
                   </Link>
 
-                  {/* Actions */}
                   {(isOwner || user?.role === "admin") && (
                     <div style={{ marginTop: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
                       {isOwner && (
