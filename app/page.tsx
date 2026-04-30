@@ -21,11 +21,64 @@ export default function HomePage() {
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Hàm tính khoảng cách Haversine (km) giữa 2 tọa độ
+  function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function sortItems(arr: any[], loc: { lat: number; lng: number } | null) {
+    if (arr.length === 0) return arr;
+    const rest = [...arr];
+
+    // Ô 1: giá rẻ nhất
+    const cheapestIdx = rest.reduce((minIdx, item, idx) => item.price < rest[minIdx].price ? idx : minIdx, 0);
+    const [cheapest] = rest.splice(cheapestIdx, 1);
+
+    // Ô 2: gần nhất (nếu có location) hoặc mới nhất
+    let second: any;
+    if (loc && rest.length > 0) {
+      // Tìm tin có lat/lng gần user nhất
+      const withCoords = rest.filter(i => i.lat != null && i.lng != null);
+      if (withCoords.length > 0) {
+        const nearest = withCoords.reduce((best, item) => {
+          return haversine(loc.lat, loc.lng, item.lat, item.lng) < haversine(loc.lat, loc.lng, best.lat, best.lng) ? item : best;
+        });
+        rest.splice(rest.indexOf(nearest), 1);
+        second = nearest;
+      }
+    }
+    if (!second && rest.length > 0) {
+      // Không có location hoặc không tìm được → lấy tin mới nhất
+      const newestIdx = rest.reduce((maxIdx, item, idx) =>
+        new Date(item.updatedAt || item.createdAt).getTime() > new Date(rest[maxIdx].updatedAt || rest[maxIdx].createdAt).getTime() ? idx : maxIdx, 0);
+      [second] = rest.splice(newestIdx, 1);
+    }
+
+    // Các ô còn lại: sắp xếp theo thời gian mới nhất
+    rest.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+
+    return [cheapest, ...(second ? [second] : []), ...rest];
+  }
+
   useEffect(() => {
     const dId = localStorage.getItem("device_id") || "dev_" + Math.random().toString(36).substring(2, 11);
     if (!localStorage.getItem("device_id")) localStorage.setItem("device_id", dId);
     setMyDeviceId(dId);
     try { setUser(JSON.parse(localStorage.getItem("user") || "null")); } catch { setUser(null); }
+
+    // Xin vị trí user
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setUserLocation(null)
+      );
+    }
 
     const fetchData = async () => {
       setLoading(true);
@@ -37,13 +90,7 @@ export default function HomePage() {
         if (resListings && resListings.ok) {
           const data = await resListings.json();
           const arr = Array.isArray(data) ? data : [];
-
-          // Sắp xếp: rẻ nhất đầu, còn lại theo updatedAt mới nhất
-          const sorted = [...arr].sort((a, b) => {
-            if (a.price !== b.price) return a.price - b.price;
-            return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
-          });
-          setItems(sorted);
+          setItems(arr);
         } else { setItems([]); }
         if (resConfig && resConfig.ok) { const cfg = await resConfig.json(); setSystemConfig(cfg); }
       } catch { setItems([]); }
@@ -96,8 +143,14 @@ export default function HomePage() {
                 <span style={{ fontSize: "16px", fontWeight: "700", color: "#fff", letterSpacing: "-0.5px" }}>ANGIAHOUSE</span>
               </div>
             </Link>
+           
             <a href="tel:0902225314" style={{ fontSize: "13px", fontWeight: "600", color: "#fff", textDecoration: "none", display: "flex", alignItems: "center", gap: "4px", borderLeft: "2px solid rgba(255,255,255,0.3)", paddingLeft: "12px" }}>
-              <span style={{ color: "#fff" }}>📞</span> 090.222.5314
+              <span style={{ color: "#fff", display: "inline-flex", alignItems: "center", gap: 6 }}>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+    <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V21a1 1 0 01-1 1A17 17 0 013 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.56a1 1 0 01-.25 1.01l-2.2 2.22z"/>
+  </svg>
+  <span>090.222.5314</span>
+</span>
             </a>
           </div>
 
@@ -161,7 +214,7 @@ export default function HomePage() {
           </div>
         ) : items.length > 0 ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
-            {items.map((item) => {
+            {sortItems(items, userLocation).map((item) => {
               if (user?.role !== "admin" && item.status === "hide") return null;
               const isOwner = (item.deviceId === myDeviceId) || (user && item.userId === user._id);
               const isHovered = hoveredId === item._id;
@@ -175,20 +228,64 @@ export default function HomePage() {
                   onMouseEnter={() => setHoveredId(item._id)}
                   onMouseLeave={() => setHoveredId(null)}
                 >
-                  <Link href={`/listing/${item._id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                    {/* Image */}
-                    <div style={{ position: "relative", width: "100%", paddingBottom: "72%", overflow: "hidden" }}>
+                  {/* Phần ảnh — wrapper riêng để gear button absolute đè lên, không lồng trong Link */}
+                  <div style={{ position: "relative", width: "100%", paddingBottom: "72%", overflow: "hidden" }}>
+                    <Link href={`/listing/${item._id}`} style={{ display: "block", position: "absolute", inset: 0 }}>
                       <img
                         src={item.coverImage || "/no-image.jpg"}
-                        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s", transform: isHovered ? "scale(1.04)" : "scale(1)" }}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s", transform: isHovered ? "scale(1.04)" : "scale(1)" }}
                         alt={item.title}
                       />
                       {item.status === "hide" && (
                         <div style={{ position: "absolute", top: "10px", left: "10px", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "11px", padding: "4px 8px", borderRadius: "5px", fontWeight: "600", backdropFilter: "blur(4px)" }}>ĐÃ ẨN</div>
                       )}
-                    </div>
+                    </Link>
 
-                    {/* Card body */}
+                    {/* Gear button — sibling của Link, không lồng vào trong */}
+                    {(isOwner || user?.role === "admin") && (
+                      <div style={{ position: "absolute", bottom: "10px", right: "10px", zIndex: 2 }}>
+                        <details style={{ position: "relative" }}>
+                          <summary style={{
+                            width: "32px", height: "32px",
+                            background: "none", border: "none", outline: "none", cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "18px", padding: 0, margin: 0,
+                            listStyle: "none", userSelect: "none", WebkitAppearance: "none"
+                          }}>
+                            ⚙️
+                          </summary>
+                          <div style={{
+                            position: "absolute", bottom: "38px", right: 0,
+                            background: "#fff", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                            minWidth: "130px", overflow: "hidden", zIndex: 10
+                          }}>
+                            <Link href={`/edit/${item._id}`} style={{ display: "block", padding: "10px 16px", fontSize: "13px", color: "#222", textDecoration: "none", fontWeight: "600" }}>
+                              ✏️ Chỉnh sửa
+                            </Link>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!confirm("Xác nhận xóa tin này?")) return;
+                                const res = await fetch(`/api/listings/${item._id}`, {
+                                  method: "DELETE",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ deviceId: myDeviceId, _adminOverride: user?.role === "admin" })
+                                });
+                                if (res.ok) setItems(prev => prev.filter(i => i._id !== item._id));
+                                else alert("Lỗi xóa tin");
+                              }}
+                              style={{ display: "block", width: "100%", padding: "10px 16px", fontSize: "13px", color: "#dc3545", background: "none", border: "none", cursor: "pointer", fontWeight: "600", textAlign: "left" }}
+                            >
+                              🗑️ Xóa tin
+                            </button>
+                          </div>
+                        </details>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card body */}
+                  <Link href={`/listing/${item._id}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
                     <div style={{ padding: "14px 14px 10px" }}>
                       {/* Title */}
                       <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#111", margin: "0 0 4px 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -231,71 +328,29 @@ export default function HomePage() {
                           color: avail.type === "late" ? "#7B2C2C" : "#fff",
                           cursor: "pointer"
                         }}>
-                          Liên hệ ☎
+                          Chi tiết ➜
                         </span>
                       </div>
                     </div>
                   </Link>
 
-                  {/* Star button - góc trên phải */}
+                  {/* 😍 button - góc trên phải */}
                   <button
                     onClick={e => toggleStar(e, item._id)}
                     style={{
                       position: "absolute", top: "10px", right: "10px",
-                      width: "34px", height: "34px", borderRadius: "50%",
-                      background: "rgba(255,255,255,0.9)", border: "none", cursor: "pointer",
+                      width: "34px", height: "34px",
+                      background: "none", border: "none", outline: "none", appearance: "none" as const, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "18px", boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                      fontSize: "22px", padding: 0, margin: 0,
                       transition: "transform 0.2s",
-                      transform: starred ? "scale(1.2)" : "scale(1)"
+                      transform: starred ? "scale(1.2)" : "scale(1)",
+                      filter: starred ? "none" : "grayscale(100%)",
                     }}
                     title="Quan tâm"
                   >
-                    {starred ? "⭐" : "☆"}
+                    😍
                   </button>
-
-                  {/* Gear button - góc dưới phải (chỉ owner/admin) */}
-                  {(isOwner || user?.role === "admin") && (
-                    <div style={{ position: "absolute", bottom: "10px", right: "10px" }}>
-                      <details style={{ position: "relative" }}>
-                        <summary style={{
-                          width: "32px", height: "32px", borderRadius: "50%",
-                          background: "rgba(255,255,255,0.92)", border: "none", cursor: "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: "16px", boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
-                          listStyle: "none", userSelect: "none"
-                        }}>
-                          ⚙️
-                        </summary>
-                        <div style={{
-                          position: "absolute", bottom: "38px", right: 0,
-                          background: "#fff", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-                          minWidth: "130px", overflow: "hidden", zIndex: 10
-                        }}>
-                          <Link href={`/edit/${item._id}`} style={{ display: "block", padding: "10px 16px", fontSize: "13px", color: "#222", textDecoration: "none", fontWeight: "600" }}
-                            onClick={e => e.stopPropagation()}>
-                            ✏️ Chỉnh sửa
-                          </Link>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (!confirm("Xác nhận xóa tin này?")) return;
-                              const res = await fetch(`/api/listings/${item._id}`, {
-                                method: "DELETE",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ deviceId: myDeviceId, _adminOverride: user?.role === "admin" })
-                              });
-                              if (res.ok) setItems(prev => prev.filter(i => i._id !== item._id));
-                              else alert("Lỗi xóa tin");
-                            }}
-                            style={{ display: "block", width: "100%", padding: "10px 16px", fontSize: "13px", color: "#dc3545", background: "none", border: "none", cursor: "pointer", fontWeight: "600", textAlign: "left" }}
-                          >
-                            🗑️ Xóa tin
-                          </button>
-                        </div>
-                      </details>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -315,6 +370,9 @@ export default function HomePage() {
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         details summary::-webkit-details-marker { display: none; }
+        details > summary { list-style: none; outline: none; }
+        details > summary:focus { outline: none; }
+        button:focus { outline: none; }
       `}} />
     </div>
   );
