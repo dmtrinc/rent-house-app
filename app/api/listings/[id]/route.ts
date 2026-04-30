@@ -21,16 +21,10 @@ async function checkOwnership(listing: any, body: any): Promise<boolean> {
   const cookieStore = await cookies();
   const userRole = cookieStore.get("user_role")?.value;
   const userId = cookieStore.get("user_id")?.value;
-  const { deviceId } = body;
+  const { deviceId, _adminOverride } = body;
 
-  // ← THÊM LOG NÀY
-  console.log("checkOwnership:", {
-    userRole,
-    userId,
-    deviceId_from_body: deviceId,
-    deviceId_in_db: listing.deviceId,
-    userId_in_db: listing.userId,
-  });
+  // Admin override từ admin dashboard
+  if (_adminOverride && userRole === "admin") return true;
 
   if (userRole === "admin") return true;
   if (userId && listing.userId && String(listing.userId) === String(userId)) return true;
@@ -53,9 +47,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "Khong co quyen chinh sua tin nay" }, { status: 403 });
     }
 
-    const { action, deviceId, userId, ...updateData } = body;
+    const { action, deviceId, userId, _adminOverride, ...updateData } = body;
+
+    // Nếu chỉ toggle status (từ admin dashboard)
     const updateQuery = action
-      ? { $set: { status: action } }
+      ? { $set: { status: action, updatedAt: new Date() } }
       : { $set: { ...updateData, updatedAt: new Date() } };
 
     await db?.collection("listings").updateOne(
