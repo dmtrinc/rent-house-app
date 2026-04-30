@@ -3,18 +3,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-const HIGHLIGHT_OPTIONS = [
-  "Full nội thất", "Ban công", "An ninh", "Máy lạnh", "Máy giặt",
-  "Chỗ để xe", "Thang máy", "Gác lửng", "Cửa sổ", "Bếp riêng",
-  "WC riêng", "Nhà mới", "Yên tĩnh", "Gần chợ", "Gần ĐH"
-];
-
 export default function DangTinPage() {
   const router = useRouter();
   const [images, setImages] = useState<string[]>([]);
   const [coverImage, setCoverImage] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [priceHistory, setPriceHistory] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     title: "",
     price: "",
@@ -22,21 +17,32 @@ export default function DangTinPage() {
     description: "",
     contactPhone: "",
     availableDate: "",
-    highlights: [] as string[],
+    highlightsText: "",
   });
 
   useEffect(() => {
     if (!localStorage.getItem("device_id")) {
       localStorage.setItem("device_id", "dev_" + Math.random().toString(36).substring(2, 12));
     }
+    // Load price history
+    try {
+      const ph = JSON.parse(localStorage.getItem("price_history") || "[]");
+      setPriceHistory(Array.isArray(ph) ? ph : []);
+    } catch { setPriceHistory([]); }
+
     const draft = localStorage.getItem("listing_draft");
     if (draft) {
       try {
         const parsed = JSON.parse(draft);
-        setFormData(prev => ({ ...prev, ...(parsed.formData || {}) }));
+        const fd = parsed.formData || {};
+        // Chuyển highlights array → text nếu cần
+        const highlightsText = Array.isArray(fd.highlights)
+          ? fd.highlights.join(", ")
+          : (fd.highlightsText || "");
+        setFormData(prev => ({ ...prev, ...fd, highlightsText }));
         setImages(parsed.images || []);
         setCoverImage(parsed.coverImage || "");
-      } catch (e) {}
+      } catch {}
     }
   }, []);
 
@@ -49,6 +55,9 @@ export default function DangTinPage() {
     if (images.length > 0 && !coverImage) setCoverImage(images[0]);
   }, [images, coverImage]);
 
+  const parseHighlights = (text: string): string[] =>
+    text.split(",").map(h => h.trim()).filter(h => h.length > 0).slice(0, 3);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -56,7 +65,8 @@ export default function DangTinPage() {
     if (images.length + fileArray.length > 10) { alert("Tối đa 10 ảnh!"); return; }
     setUploadingCount(fileArray.length);
     for (const file of fileArray) {
-      if (file.size > 5000000) { alert(`File ${file.name} quá lớn (tối đa 5MB)`); continue; }
+      // 2: tăng lên 10MB
+      if (file.size > 10_000_000) { alert(`File ${file.name} quá lớn (tối đa 10MB)`); setUploadingCount(prev => Math.max(0, prev - 1)); continue; }
       const fd = new FormData();
       fd.append("file", file);
       fd.append("upload_preset", "ml_default");
@@ -77,15 +87,6 @@ export default function DangTinPage() {
     if (coverImage === images[index]) setCoverImage(newImages[0] || "");
   };
 
-  const toggleHighlight = (h: string) => {
-    setFormData(prev => {
-      const current = prev.highlights || [];
-      if (current.includes(h)) return { ...prev, highlights: current.filter(x => x !== h) };
-      if (current.length >= 3) { alert("Chọn tối đa 3 đặc điểm!"); return prev; }
-      return { ...prev, highlights: [...current, h] };
-    });
-  };
-
   const validateForm = () => {
     if (images.length === 0) { alert("Vui lòng thêm ít nhất 1 hình ảnh!"); return false; }
     if (!coverImage) { alert("Vui lòng chọn ảnh đại diện!"); return false; }
@@ -100,6 +101,13 @@ export default function DangTinPage() {
     e.preventDefault();
     if (!validateForm()) return;
     setIsSubmitting(true);
+
+    // Lưu price history
+    if (formData.price) {
+      const newHistory = [formData.price, ...priceHistory.filter(p => p !== formData.price)].slice(0, 10);
+      localStorage.setItem("price_history", JSON.stringify(newHistory));
+    }
+
     const userStr = localStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
     const payload = {
@@ -109,7 +117,7 @@ export default function DangTinPage() {
       description: formData.description.trim(),
       contactPhone: formData.contactPhone.trim(),
       availableDate: formData.availableDate || null,
-      highlights: formData.highlights,
+      highlights: parseHighlights(formData.highlightsText),
       images,
       coverImage,
       deviceId: localStorage.getItem("device_id"),
@@ -143,6 +151,9 @@ export default function DangTinPage() {
     borderRadius: "8px", fontSize: "16px", outline: "none",
     boxSizing: "border-box", backgroundColor: "#fff", color: "#222"
   };
+
+  const highlights = parseHighlights(formData.highlightsText);
+  const highlightsTotalChars = formData.highlightsText.replace(/,\s*/g, ",").replace(/,/g, "").length;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
@@ -179,7 +190,8 @@ export default function DangTinPage() {
               <p style={{ fontSize: "15px", color: "#222", fontWeight: "600", margin: "0 0 6px 0" }}>
                 {uploadingCount > 0 ? `Đang tải ${uploadingCount} ảnh...` : "Thêm ảnh"}
               </p>
-              <p style={{ fontSize: "13px", color: "#717171", margin: 0 }}>Click để chọn ảnh (tối đa 10 ảnh, 5MB/ảnh)</p>
+              {/* 1: tăng lên 10MB */}
+              <p style={{ fontSize: "13px", color: "#717171", margin: 0 }}>Click để chọn ảnh (tối đa 10 ảnh, 10MB/ảnh)</p>
             </label>
             {images.length > 0 && (
               <div style={{ marginTop: "16px" }}>
@@ -213,11 +225,24 @@ export default function DangTinPage() {
               placeholder="VD: Phòng trọ 25m² gần ĐH Bách Khoa, đầy đủ nội thất" required maxLength={100} style={inputStyle} />
           </div>
 
-          {/* Price */}
+          {/* Price - 2: datalist cho phép chọn lại giá cũ */}
           <div>
             <label style={{ display: "block", fontSize: "15px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>Giá thuê (VNĐ/tháng) *</label>
-            <input name="price" type="number" value={formData.price} onChange={e => handleInputChange("price", e.target.value)}
-              placeholder="VD: 3000000" required min="100000" max="100000000" step="100000" style={inputStyle} />
+            <input
+              name="price"
+              type="number"
+              list="price-history-list"
+              value={formData.price}
+              onChange={e => handleInputChange("price", e.target.value)}
+              placeholder="VD: 3000000"
+              required min="100000" max="100000000" step="100000"
+              style={inputStyle}
+            />
+            <datalist id="price-history-list">
+              {priceHistory.map((p, i) => (
+                <option key={i} value={p}>{Number(p).toLocaleString()} đ/tháng</option>
+              ))}
+            </datalist>
             {formData.price && <p style={{ fontSize: "13px", color: "#717171", margin: "6px 0 0 0" }}>≈ {Number(formData.price).toLocaleString()} đ/tháng</p>}
           </div>
 
@@ -243,31 +268,37 @@ export default function DangTinPage() {
             <p style={{ fontSize: "12px", color: "#717171", margin: "5px 0 0 0" }}>Để trống nếu phòng đã sẵn sàng ngay bây giờ</p>
           </div>
 
-          {/* Highlights */}
+          {/* Highlights - 3: tự gõ, tổng tối đa 20 ký tự, hiển thị 3 đầu */}
           <div>
             <label style={{ display: "block", fontSize: "15px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
-              Đặc điểm nổi bật <span style={{ fontSize: "13px", fontWeight: "400", color: "#717171" }}>(chọn tối đa 3)</span>
+              Đặc điểm nổi bật{" "}
+              <span style={{ fontSize: "13px", fontWeight: "400", color: highlightsTotalChars > 35 ? "#dc3545" : "#717171" }}>
+                (cách nhau bằng dấu phẩy, tổng tối đa 35 ký tự — đã dùng {highlightsTotalChars}/35)
+              </span>
             </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              {HIGHLIGHT_OPTIONS.map(h => {
-                const selected = (formData.highlights || []).includes(h);
-                return (
-                  <button key={h} type="button" onClick={() => toggleHighlight(h)} style={{
-                    padding: "6px 14px", borderRadius: "20px", fontSize: "13px", cursor: "pointer", fontWeight: "500",
-                    border: selected ? "none" : "1px solid #DDDDDD",
-                    background: selected ? "#006633" : "#F7F7F7",
-                    color: selected ? "#fff" : "#222",
-                    transition: "all 0.15s"
-                  }}>
-                    {selected ? "✓ " : ""}{h}
-                  </button>
-                );
-              })}
-            </div>
-            {(formData.highlights || []).length > 0 && (
-              <p style={{ fontSize: "12px", color: "#006633", margin: "8px 0 0 0", fontWeight: "500" }}>
-                Đã chọn: {formData.highlights.join(", ")}
-              </p>
+            <input
+              value={formData.highlightsText}
+              onChange={e => {
+                const raw = e.target.value;
+                // Tính tổng ký tự không tính dấu phẩy và khoảng trắng phân cách
+                const totalChars = raw.split(",").map(h => h.trim()).join("").length;
+                if (totalChars > 35) return; // Chặn nếu vượt 20 ký tự
+                handleInputChange("highlightsText", raw);
+              }}
+              placeholder="VD: Nội thất, Ban công, AC"
+              style={{ ...inputStyle, borderColor: highlightsTotalChars > 34 ? "#dc3545" : "#DDDDDD" }}
+            />
+            <p style={{ fontSize: "12px", color: "#717171", margin: "5px 0 0 0" }}>Chỉ 3 đặc điểm đầu tiên sẽ được hiển thị trên card.</p>
+
+            {/* Preview */}
+            {highlights.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+                {highlights.map((h, i) => (
+                  <span key={i} style={{ fontSize: "12px", padding: "4px 10px", borderRadius: "12px", background: "#e8f5e9", color: "#2e7d32", fontWeight: "500" }}>
+                    ✓ {h}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
 

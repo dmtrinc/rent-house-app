@@ -3,12 +3,6 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-const HIGHLIGHT_OPTIONS = [
-  "Full nội thất", "Ban công", "An ninh", "Máy lạnh", "Máy giặt",
-  "Chỗ để xe", "Thang máy", "Gác lửng", "Cửa sổ", "Bếp riêng",
-  "WC riêng", "Nhà mới", "Yên tĩnh", "Gần chợ", "Gần ĐH"
-];
-
 export default function EditListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -19,6 +13,7 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
   const [isDeleting, setIsDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [priceHistory, setPriceHistory] = useState<string[]>([]);
   const [formValues, setFormValues] = useState({
     title: "",
     price: "",
@@ -30,6 +25,12 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
   });
 
   useEffect(() => {
+    // Load price history
+    try {
+      const ph = JSON.parse(localStorage.getItem("price_history") || "[]");
+      setPriceHistory(Array.isArray(ph) ? ph : []);
+    } catch { setPriceHistory([]); }
+
     const fetchData = async () => {
       try {
         const res = await fetch(`/api/listings/${id}`);
@@ -53,13 +54,10 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
         setImages(data.images || []);
         setCoverImage(data.coverImage || "");
 
-        // Format availableDate về yyyy-mm-dd cho input[type=date]
         let availDateStr = "";
         if (data.availableDate) {
           const d = new Date(data.availableDate);
-          if (!isNaN(d.getTime())) {
-            availDateStr = d.toISOString().split("T")[0];
-          }
+          if (!isNaN(d.getTime())) availDateStr = d.toISOString().split("T")[0];
         }
 
         setFormValues({
@@ -81,6 +79,9 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
     fetchData();
   }, [id, router]);
 
+  const parseHighlights = (text: string): string[] =>
+    text.split(",").map(h => h.trim()).filter(h => h.length > 0).slice(0, 3);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -88,7 +89,8 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
     if (images.length + fileArray.length > 10) { alert("Tối đa 10 ảnh!"); return; }
     setUploadingCount(fileArray.length);
     for (const file of fileArray) {
-      if (file.size > 5000000) { alert(`File ${file.name} quá lớn (tối đa 5MB)`); continue; }
+      // 1: tăng lên 10MB
+      if (file.size > 10_000_000) { alert(`File ${file.name} quá lớn (tối đa 10MB)`); setUploadingCount(prev => Math.max(0, prev - 1)); continue; }
       const fd = new FormData();
       fd.append("file", file);
       fd.append("upload_preset", "ml_default");
@@ -109,10 +111,6 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
     if (coverImage === images[index]) setCoverImage(newImages[0] || "");
   };
 
-  const parseHighlights = (text: string): string[] => {
-    return text.split(",").map(h => h.trim()).filter(h => h.length > 0).slice(0, 3);
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (images.length === 0) return alert("Vui lòng giữ lại ít nhất 1 hình ảnh!");
@@ -123,6 +121,12 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
     if (!formValues.contactPhone || formValues.contactPhone.trim().length < 10) return alert("Vui lòng nhập số điện thoại hợp lệ!");
 
     setIsSubmitting(true);
+
+    // Lưu price history
+    if (formValues.price) {
+      const newHistory = [formValues.price, ...priceHistory.filter(p => p !== formValues.price)].slice(0, 10);
+      localStorage.setItem("price_history", JSON.stringify(newHistory));
+    }
 
     const userStr = localStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
@@ -190,10 +194,10 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
   };
 
   const highlights = parseHighlights(formValues.highlightsText);
+  const highlightsTotalChars = formValues.highlightsText.split(",").map(h => h.trim()).join("").length;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#fff" }}>
-      {/* Header */}
       <header style={{ borderBottom: "1px solid #004d26", backgroundColor: "#006633" }}>
         <div style={{ maxWidth: "1760px", margin: "0 auto", padding: "16px 20px", display: "flex", alignItems: "center", gap: "16px" }}>
           <Link href="/" style={{ textDecoration: "none" }}>
@@ -216,11 +220,9 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
             <label style={{ display: "block", fontSize: "15px", fontWeight: "600", color: "#222", marginBottom: "10px" }}>
               Hình ảnh * <span style={{ fontSize: "13px", fontWeight: "400", color: "#717171" }}>({images.length}/10)</span>
             </label>
-
             <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple
               onChange={handleFileUpload} disabled={uploadingCount > 0 || images.length >= 10}
               style={{ display: "none" }} id="file-upload" />
-
             <label htmlFor="file-upload" style={{
               display: "block", border: "2px dashed #DDDDDD", padding: "32px 20px", textAlign: "center",
               borderRadius: "12px", cursor: (uploadingCount > 0 || images.length >= 10) ? "not-allowed" : "pointer",
@@ -230,7 +232,8 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
               <p style={{ fontSize: "15px", color: "#222", fontWeight: "600", margin: "0 0 4px 0" }}>
                 {uploadingCount > 0 ? `Đang tải ${uploadingCount} ảnh...` : "Thêm ảnh mới"}
               </p>
-              <p style={{ fontSize: "13px", color: "#717171", margin: 0 }}>Tối đa 10 ảnh, 5MB/ảnh</p>
+              {/* 1: tăng lên 10MB */}
+              <p style={{ fontSize: "13px", color: "#717171", margin: 0 }}>Tối đa 10 ảnh, 10MB/ảnh</p>
             </label>
 
             {images.length > 0 && (
@@ -269,11 +272,23 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
               placeholder="VD: Phòng trọ 25m² gần ĐH Bách Khoa, đầy đủ nội thất" required maxLength={100} style={inputStyle} />
           </div>
 
-          {/* Price */}
+          {/* Price - 2: datalist cho phép chọn lại giá cũ */}
           <div>
             <label style={{ display: "block", fontSize: "15px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>Giá thuê (VNĐ/tháng) *</label>
-            <input type="number" value={formValues.price} onChange={e => setFormValues({ ...formValues, price: e.target.value })}
-              placeholder="VD: 3000000" required min="100000" max="100000000" step="100000" style={inputStyle} />
+            <input
+              type="number"
+              list="price-history-list"
+              value={formValues.price}
+              onChange={e => setFormValues({ ...formValues, price: e.target.value })}
+              placeholder="VD: 3000000"
+              required min="100000" max="100000000" step="100000"
+              style={inputStyle}
+            />
+            <datalist id="price-history-list">
+              {priceHistory.map((p, i) => (
+                <option key={i} value={p}>{Number(p).toLocaleString()} đ/tháng</option>
+              ))}
+            </datalist>
             {formValues.price && <p style={{ fontSize: "13px", color: "#717171", margin: "6px 0 0 0" }}>≈ {Number(formValues.price).toLocaleString()} đ/tháng</p>}
           </div>
 
@@ -299,61 +314,37 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
             <p style={{ fontSize: "12px", color: "#717171", margin: "5px 0 0 0" }}>Để trống nếu phòng đã sẵn sàng ngay bây giờ</p>
           </div>
 
-          {/* Highlights - tự nhập */}
+          {/* Highlights - 3: tự gõ, tổng tối đa 20 ký tự, hiển thị 3 đầu */}
           <div>
             <label style={{ display: "block", fontSize: "15px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
-              Đặc điểm nổi bật <span style={{ fontSize: "13px", fontWeight: "400", color: "#717171" }}>(tối đa 3, cách nhau bằng dấu phẩy)</span>
+              Đặc điểm nổi bật{" "}
+              <span style={{ fontSize: "13px", fontWeight: "400", color: highlightsTotalChars > 35 ? "#dc3545" : "#717171" }}>
+                (cách nhau bằng dấu phẩy, tổng tối đa 35 ký tự — đã dùng {highlightsTotalChars}/35)
+              </span>
             </label>
             <input
               value={formValues.highlightsText}
-              onChange={e => setFormValues({ ...formValues, highlightsText: e.target.value })}
-              placeholder="VD: Full nội thất, Ban công, An ninh"
-              style={inputStyle}
+              onChange={e => {
+                const raw = e.target.value;
+                const totalChars = raw.split(",").map(h => h.trim()).join("").length;
+                if (totalChars > 35) return;
+                setFormValues({ ...formValues, highlightsText: raw });
+              }}
+              placeholder="VD: Nội thất, Ban công, AC"
+              style={{ ...inputStyle, borderColor: highlightsTotalChars > 34 ? "#dc3545" : "#DDDDDD" }}
             />
-            <p style={{ fontSize: "12px", color: "#717171", margin: "5px 0 0 0" }}>Tối đa 20 ký tự mỗi đặc điểm. Chỉ 3 đặc điểm đầu tiên sẽ được hiển thị.</p>
+            <p style={{ fontSize: "12px", color: "#717171", margin: "5px 0 0 0" }}>Chỉ 3 đặc điểm đầu tiên sẽ được hiển thị trên card.</p>
 
             {/* Preview */}
             {highlights.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
                 {highlights.map((h, i) => (
                   <span key={i} style={{ fontSize: "12px", padding: "4px 10px", borderRadius: "12px", background: "#e8f5e9", color: "#2e7d32", fontWeight: "500" }}>
-                    ✓ {h.slice(0, 20)}
+                    ✓ {h}
                   </span>
                 ))}
               </div>
             )}
-
-            {/* Gợi ý nhanh */}
-            <div style={{ marginTop: "10px" }}>
-              <p style={{ fontSize: "12px", color: "#999", marginBottom: "6px" }}>Gợi ý nhanh (click để thêm):</p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                {HIGHLIGHT_OPTIONS.map(h => {
-                  const already = highlights.includes(h);
-                  return (
-                    <button key={h} type="button"
-                      onClick={() => {
-                        if (already) {
-                          const newList = highlights.filter(x => x !== h);
-                          setFormValues(prev => ({ ...prev, highlightsText: newList.join(", ") }));
-                        } else {
-                          if (highlights.length >= 3) { alert("Chỉ được chọn tối đa 3 đặc điểm!"); return; }
-                          const newList = [...highlights, h];
-                          setFormValues(prev => ({ ...prev, highlightsText: newList.join(", ") }));
-                        }
-                      }}
-                      style={{
-                        padding: "4px 10px", borderRadius: "16px", fontSize: "12px", cursor: "pointer", fontWeight: "500",
-                        border: already ? "none" : "1px solid #DDDDDD",
-                        background: already ? "#006633" : "#F7F7F7",
-                        color: already ? "#fff" : "#555",
-                        transition: "all 0.15s"
-                      }}>
-                      {already ? "✓ " : ""}{h}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
 
           {/* Description */}
