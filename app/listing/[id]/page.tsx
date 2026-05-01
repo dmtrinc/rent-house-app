@@ -36,10 +36,10 @@ const FURNITURE = [
 ];
 
 /* ─── Voucher countdown ───────────────────────── */
-function useVoucherCountdown(days = 3) {
+function useVoucherCountdown(days = 2) {
   const [remaining, setRemaining] = useState("");
   useEffect(() => {
-    const end = Date.now() + days * 86400000;
+    const end = Date.now() + days * 76400000;
     const tick = () => {
       const diff = end - Date.now();
       if (diff <= 0) { setRemaining("Đã hết hạn"); return; }
@@ -351,13 +351,13 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
             {/* ── 3 HIGHLIGHTS ── */}
             <div style={{ background:"#fff", borderRadius:14, padding:"20px 24px",
               marginBottom:16, boxShadow:"0 1px 6px rgba(0,0,0,0.07)" }}>
-              <h2 style={{ fontSize:17, fontWeight:800, color:"#111", margin:"0 0 14px" }}>⭐ 3 Đặc điểm nổi bật</h2>
+              <h2 style={{ fontSize:17, fontWeight:800, color:"#111", margin:"0 0 14px" }}>⭐ Đặc điểm nổi bật</h2>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
                 {highlights.map((h,i) => (
                   <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10,
                     padding:"14px 16px", borderRadius:10, background:"#f0faf4",
                     border:"1px solid #c8e6c9" }}>
-                    <span style={{ fontSize:22 }}>{"🌟✨💡".split("").filter((_,j)=>j===i)[0] || "✅"}</span>
+                    <span style={{ fontSize:22 }}>{"🌟✨💡".split("").filter((_,j)=>j===i)[0] || "✓"}</span>
                     <div>
                       <div style={{ fontWeight:700, fontSize:14, color:GREEN }}>{h}</div>
                     </div>
