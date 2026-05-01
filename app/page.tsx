@@ -182,20 +182,35 @@ export default function HomePage() {
             </a>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          
+<div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             {!systemConfig.globalPostEnabled && (
               <span style={{ fontSize: "12px", color: "#fff", padding: "5px 10px", background: "rgba(255,255,255,0.2)", borderRadius: "22px", whiteSpace: "nowrap" }}>Bảo trì</span>
             )}
             {user?.role === "admin" && (
               <Link href="/admin" style={{ ...navBtnStyle("#FF385C", "#fff"), border: "none" }}>Quản trị</Link>
             )}
+
+            {/* Đăng tin */}
             <Link
               href={(systemConfig.globalPostEnabled && user?.canPost !== false) ? "/dang-tin" : "#"}
               onClick={e => { if (!systemConfig.globalPostEnabled || user?.canPost === false) { e.preventDefault(); alert("Chức năng đăng tin tạm khóa"); } }}
               style={{ ...navBtnStyle("#FFD966", "#006633"), border: "none" }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1.06)"; el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)"; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1)"; el.style.boxShadow = "none"; }}
             >
               Đăng tin
             </Link>
+
+            {/* Phòng trống - chưa hoạt động */}
+            <span
+              style={navBtnStyle()}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1.06)"; el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)"; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1)"; el.style.boxShadow = "none"; }}
+            >
+              Phòng trống
+            </span>
+
             {user ? (
               <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 4px 4px 10px", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "21px", background: "rgba(255,255,255,0.1)" }}>
                 <div>
@@ -205,9 +220,17 @@ export default function HomePage() {
                 <button onClick={handleLogout} style={{ width: "28px", height: "28px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", color: "#fff", border: "none", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>⎋</button>
               </div>
             ) : (
-              <Link href="/login" style={navBtnStyle()}>Đăng nhập</Link>
+              <Link
+                href="/login"
+                style={navBtnStyle()}
+                onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1.06)"; el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)"; }}
+                onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1)"; el.style.boxShadow = "none"; }}
+              >
+                Đăng nhập
+              </Link>
             )}
           </div>
+
         </div>
       </header>
 
