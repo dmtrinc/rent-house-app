@@ -23,7 +23,7 @@ function getAvailabilityInfo(availableDate: string | null | undefined) {
   const diffDays = Math.ceil((avail.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
   // 1. Có thể dọn vào ngay (< 1 ngày)
-  if (diffDays < 1) {
+  if (diffDays < 2) {
     return { 
       label: "Có thể dọn vào ngay", 
       type: "now", 
@@ -168,7 +168,7 @@ export default function HomePage() {
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <Link href="/" style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <img src="https://res.cloudinary.com/df717ylr1/image/upload/v1777485110/logo_an_gia_house_c600o8.png" alt="Angiahouse" style={{ height: "32px", width: "auto" }} />
+                <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png" alt="Angiahouse" style={{ height: "32px", width: "auto" }} />
                 <span style={{ fontSize: "16px", fontWeight: "700", color: "#fff", letterSpacing: "-0.5px" }}>ANGIAHOUSE</span>
               </div>
             </Link>

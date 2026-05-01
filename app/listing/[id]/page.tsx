@@ -9,7 +9,7 @@ function getAvailabilityInfo(availableDate: string | null | undefined) {
   if (!availableDate) return { label:"Có thể dọn vào ngay", type:"now", color:"#006633", bg:"#e8f5e9" };
   const avail = new Date(availableDate);
   const diff  = Math.ceil((avail.getTime() - now.getTime()) / 86400000);
-  if (diff < 1)  return { label:"Có thể dọn vào ngay", type:"now",  color:"#006633", bg:"#e8f5e9" };
+  if (diff < 2)  return { label:"Có thể dọn vào ngay", type:"now",  color:"#006633", bg:"#e8f5e9" };
   if (diff < 30) return { label:`Trống từ ${avail.toLocaleDateString("vi-VN")}`, type:"soon", color:"#b08500", bg:"#fff8e1" };
   return        { label:`Trống từ ${avail.toLocaleDateString("vi-VN")}`, type:"late", color:"#888",    bg:"#f5f5f5" };
 }
@@ -532,7 +532,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
                     width:"100%", padding:"14px", background:"#0068FF",
                     color:"#fff", border:"none", borderRadius:10, fontSize:15, fontWeight:700,
                     cursor:"pointer", textDecoration:"none", marginBottom:14, boxSizing:"border-box" }}>
-                  <img src="https://page.widget.zalo.me/static/images/2.0/Logo.svg" alt="Zalo"
+                  <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/q_auto/f_auto/v1777633372/Logo_zalo_nxtzsr.svg" alt="Zalo"
                     style={{ height:20, width:"auto", filter:"brightness(0) invert(1)" }} />
                   Chat Zalo: 090.222.5314
                 </a>
@@ -620,7 +620,7 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
           style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6,
             padding:"13px", background:"#0068FF", color:"#fff", borderRadius:10,
             fontSize:15, fontWeight:700, textDecoration:"none" }}>
-          <img src="https://page.widget.zalo.me/static/images/2.0/Logo.svg" alt="Zalo"
+          <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/q_auto/f_auto/v1777633372/Logo_zalo_nxtzsr.svg" alt="Zalo"
             style={{ height:18, filter:"brightness(0) invert(1)" }} />
           Zalo
         </a>

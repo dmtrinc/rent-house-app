@@ -6,12 +6,12 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"] });
 
 // Đường dẫn logo Cloudinary của bạn
-const logoOnlineUrl = "https://res.cloudinary.com/df717ylr1/image/upload/v1777294578/logo_ifm9zc.png";
+const logoOnlineUrl = "https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648952/logo_an_gia_house_chrome_hlb8nr.png";
 
 export const metadata: Metadata = {
   // Tiêu đề hiển thị trên tab trình duyệt
   title: "Phòng trọ Angiahouse",
-  description: "Hệ thống quản lý phòng trọ Angiahouse - 090.222.5314",
+  description: "Hệ thống phòng trọ Angiahouse TPHCM - 090.222.5314",
   
   // Cấu hình để hiện logo trên tab Google (Favicon)
   icons: {
