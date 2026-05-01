@@ -17,7 +17,7 @@ function getAvailabilityInfo(availableDate: string | null | undefined) {
 function useVoucherCountdown(days = 3) {
   const [remaining, setRemaining] = useState("");
   useEffect(() => {
-    const end = Date.now() + days * 86400000;
+    const end = Date.now() + days * 76400000;
     const tick = () => {
       const diff = end - Date.now();
       if (diff <= 0) { setRemaining("Đã hết hạn"); return; }
@@ -25,7 +25,7 @@ function useVoucherCountdown(days = 3) {
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
-      setRemaining(`${d} ngày ${h}giờ ${m}phút ${s}giây`);
+      setRemaining(`${d} ngày ${h} giờ ${m} phút ${s} giây`);
     };
     tick();
     const id = setInterval(tick, 1000);

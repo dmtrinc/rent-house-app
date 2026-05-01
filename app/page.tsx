@@ -203,6 +203,7 @@ export default function HomePage() {
             </Link>
 
             {/* Phòng trống - chưa hoạt động */}
+            <Link href="/phong-trong">
             <span
               style={navBtnStyle()}
               onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1.06)"; el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)"; }}
@@ -210,6 +211,7 @@ export default function HomePage() {
             >
               Phòng trống
             </span>
+            </Link>
 
             {user ? (
               <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 4px 4px 10px", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "21px", background: "rgba(255,255,255,0.1)" }}>
