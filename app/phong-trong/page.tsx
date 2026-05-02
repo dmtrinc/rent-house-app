@@ -100,42 +100,44 @@ export default function PhongTrongPage() {
   }, []);
 
   /* ── Config: GET from DB ── */
-  async function fetchConfig() {
-    try {
-      const res = await fetch("/api/admin/config");
-      if (!res.ok) return;
-      const cfg: PageConfig = await res.json();
-      const t = cfg.phongtrongTitle  || DEFAULT_PHONGTRONG_TITLE;
-      const f = cfg.phongtrongFooter || DEFAULT_PHONGTRONG_FOOTER;
-      setPageTitle(t);  setEditTitle(t);
-      setFooterText(f); setEditFooter(f);
-    } catch {}
-  }
+async function fetchConfig() {
+  try {
+    const res = await fetch("/api/admin/config", {
+      cache: "no-store",           // ← thêm dòng này
+      headers: { "Pragma": "no-cache" }
+    });
+    if (!res.ok) return;
+    const cfg: PageConfig = await res.json();
+    const t = cfg.phongtrongTitle  || DEFAULT_PHONGTRONG_TITLE;
+    const f = cfg.phongtrongFooter || DEFAULT_PHONGTRONG_FOOTER;
+    setPageTitle(t);  setEditTitle(t);
+    setFooterText(f); setEditFooter(f);
+  } catch {}
+}
 
   /* ── Config: POST (merge) to DB ── */
   async function saveConfig() {
-    setSaving(true); setSaveMsg("");
-    try {
-      // Fetch current config first to avoid overwriting other fields
-      const existing: PageConfig = await fetch("/api/admin/config")
-        .then(r => r.json()).catch(() => ({}));
-      const res = await fetch("/api/admin/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...existing, phongtrongTitle: editTitle, phongtrongFooter: editFooter }),
-      });
-      if (res.ok) {
-        setPageTitle(editTitle);
-        setFooterText(editFooter);
-        setSaveMsg("✅ Đã lưu");
-        setTimeout(() => { setSaveMsg(""); setAdminOpen(false); }, 1500);
-      } else {
-        setSaveMsg("❌ Lỗi lưu");
-      }
-    } catch {
-      setSaveMsg("❌ Lỗi kết nối");
-    } finally { setSaving(false); }
-  }
+  setSaving(true); setSaveMsg("");
+  try {
+    const existing: PageConfig = await fetch("/api/admin/config", { cache: "no-store" })
+      .then(r => r.json()).catch(() => ({}));
+    const res = await fetch("/api/admin/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...existing, phongtrongTitle: editTitle, phongtrongFooter: editFooter }),
+    });
+    if (res.ok) {
+      setPageTitle(editTitle);
+      setFooterText(editFooter);
+      setSaveMsg("✅ Đã lưu");
+      setTimeout(() => { setSaveMsg(""); setAdminOpen(false); }, 1500);
+    } else {
+      setSaveMsg("❌ Lỗi lưu");
+    }
+  } catch {
+    setSaveMsg("❌ Lỗi kết nối");
+  } finally { setSaving(false); }
+}
 
   /* ── Listings ── */
   async function fetchListings() {

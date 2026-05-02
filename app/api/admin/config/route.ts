@@ -15,15 +15,20 @@ export async function GET() {
       maintenanceMode:    doc?.maintenanceMode     ?? false,
       contactHotline:     doc?.contactHotline      ?? "0902225314",
       autoDeleteDays:     doc?.autoDeleteDays      ?? 30,
-      phongtrongTitle:    doc?.phongtrongTitle      ?? "Phòng trọ Angiahouse - danh sách phòng trống",
-      phongtrongFooter:   doc?.phongtrongFooter     ?? "Angiahouse 090.222.5314 - Phí sale 50% (HĐ6th) 70% (HĐ12th)",
+      phongtrongTitle:    doc?.phongtrongTitle      ?? "Phong tro Angiahouse - danh sach phong trong",
+      phongtrongFooter:   doc?.phongtrongFooter     ?? "Angiahouse 090.222.5314 - Phi sale 50% (HD6th) 70% (HD12th)",
       version:            doc?.version             ?? "1.0.0",
     };
 
-    return NextResponse.json(config);
+    return NextResponse.json(config, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+      }
+    });
   } catch (error: any) {
-    console.error("Lỗi GET /api/admin/config:", error);
-    return NextResponse.json({ message: "Không thể tải cấu hình" }, { status: 500 });
+    console.error("Loi GET /api/admin/config:", error);
+    return NextResponse.json({ message: "Khong the tai cau hinh" }, { status: 500 });
   }
 }
 
@@ -33,7 +38,6 @@ export async function POST(req: Request) {
     const conn = await connectDB();
     const db = conn.connection.db;
 
-    // Chỉ lưu các field được phép, loại bỏ _id nếu client gửi lên
     const { _id, ...updateData } = body;
 
     await db?.collection(CONFIG_COLLECTION).updateOne(
@@ -44,9 +48,13 @@ export async function POST(req: Request) {
 
     const updated = await db?.collection(CONFIG_COLLECTION).findOne({ _id: CONFIG_ID as any });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(updated, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      }
+    });
   } catch (error: any) {
-    console.error("Lỗi POST /api/admin/config:", error);
-    return NextResponse.json({ message: "Lỗi khi cập nhật cấu hình" }, { status: 500 });
+    console.error("Loi POST /api/admin/config:", error);
+    return NextResponse.json({ message: "Loi khi cap nhat cau hinh" }, { status: 500 });
   }
 }
