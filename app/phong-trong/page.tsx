@@ -311,9 +311,12 @@ export default function PhongTrongPage() {
         {/* Table block: title + table + footer */}
         <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 24 }}>
 
-          {/* Tiêu đề (từ DB) */}
-          <div style={{ padding: "8px 12px 6px", fontSize: 13, fontWeight: 700, color: GREEN, borderBottom: "1px solid #e8f5e9" }}>
-            {pageTitle}
+          {/* Tiêu đề (từ DB) + ngày cập nhật */}
+          <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid #e8f5e9", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{pageTitle}</div>
+            <div style={{ fontSize: 10, color: "#999", fontStyle: "italic", whiteSpace: "nowrap" }}>
+              Cập nhật: {new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+            </div>
           </div>
 
           {loading ? (
