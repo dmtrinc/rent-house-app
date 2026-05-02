@@ -16,6 +16,10 @@ const listingSchema = new Schema(
     userId: { type: String, default: null },
     availableDate: { type: Date, default: null },
     highlights: { type: [String], default: [] },
+    // Tự ẩn sau N ngày kể từ ngày tạo (null = không áp dụng)
+    autoHideDays: { type: Number, default: null },
+    // Tự xóa sau N ngày kể từ ngày tạo (null = không áp dụng)
+    autoDeleteDays: { type: Number, default: null },
   },
   { timestamps: true }
 );

@@ -67,8 +67,9 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
         const isDeviceOwner = data.deviceId && data.deviceId === myDeviceId;
         const isUserOwner = user && data.userId && String(data.userId) === String(user._id);
         const isAdmin = user?.role === "admin";
+        const isMod         = user?.role === "mod";
 
-        if (!isDeviceOwner && !isUserOwner && !isAdmin) {
+        if (!isDeviceOwner && !isUserOwner && !isAdmin && !isMod) {
           alert("Bạn không có quyền chỉnh sửa tin này!");
           router.push("/");
           return;
@@ -194,6 +195,7 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
       coverImage,
       deviceId: localStorage.getItem("device_id"),
       _adminOverride: user?.role === "admin",
+      _modOverride: user?.role === "mod",
     };
 
     const res = await fetch(`/api/listings/${id}`, {

@@ -9,13 +9,13 @@ const userSchema = new Schema(
       trim: true,
     },
     email: {
-  type: String,
-  required: false,
-  unique: true,
-  sparse: true, // ← cho phép nhiều user không có email mà không bị lỗi unique
-  lowercase: true,
-  trim: true,
-},
+      type: String,
+      required: false,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+    },
     password: {
       type: String,
       required: [true, "Mật khẩu là bắt buộc"],
@@ -26,7 +26,7 @@ const userSchema = new Schema(
     },
     role: {
       type: String,
-      enum: ["user", "admin"],
+      enum: ["user", "mod", "admin", "guest"],
       default: "user",
     },
     status: {
@@ -34,9 +34,23 @@ const userSchema = new Schema(
       enum: ["active", "banned"],
       default: "active",
     },
+    // suspended: đình chỉ quyền đăng/sửa tin (vẫn đăng nhập được)
+    suspended: {
+      type: Boolean,
+      default: false,
+    },
     canPost: {
       type: Boolean,
       default: true,
+    },
+    // isGuestAccount: đánh dấu đây là tài khoản vãng lai đặc biệt, không xóa được
+    isGuestAccount: {
+      type: Boolean,
+      default: false,
+    },
+    lastLogin: {
+      type: Date,
+      default: null,
     },
   },
   {
