@@ -12,9 +12,12 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Bảo vệ toàn bộ /api/admin/*
+  // Bảo vệ /api/admin/* — NGOẠI TRỪ GET /api/admin/config (public, dùng cho mọi user)
   if (pathname.startsWith("/api/admin")) {
-    if (userRole !== "admin") {
+    const isPublicConfigRead =
+      pathname === "/api/admin/config" && request.method === "GET";
+
+    if (!isPublicConfigRead && userRole !== "admin") {
       return NextResponse.json(
         { error: "Không có quyền truy cập" },
         { status: 403 }
