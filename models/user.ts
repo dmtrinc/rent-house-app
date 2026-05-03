@@ -22,42 +22,24 @@ const userSchema = new Schema(
     },
     plainPassword: {
       type: String,
-      default: "", // ⚠️ Chỉ dùng khi develop — xóa field này khi go live
+      default: "", // ⚠️ Dev only — xóa trước khi go live
     },
-    role: {
-      type: String,
-      enum: ["user", "mod", "admin", "guest"],
-      default: "user",
-    },
-    status: {
-      type: String,
-      enum: ["active", "banned"],
-      default: "active",
-    },
-    // suspended: đình chỉ quyền đăng/sửa tin (vẫn đăng nhập được)
-    suspended: {
-      type: Boolean,
-      default: false,
-    },
-    canPost: {
-      type: Boolean,
-      default: true,
-    },
-    // isGuestAccount: đánh dấu đây là tài khoản vãng lai đặc biệt, không xóa được
-    isGuestAccount: {
-      type: Boolean,
-      default: false,
-    },
-    lastLogin: {
-      type: Date,
-      default: null,
-    },
+    phone:    { type: String, default: "", trim: true },
+    role:     { type: String, enum: ["user", "mod", "admin", "guest"], default: "user" },
+    status:   { type: String, enum: ["active", "banned"], default: "active" },
+    suspended: { type: Boolean, default: false },  // admin đình chỉ tạm thời
+    canPost:  { type: Boolean, default: true },
+    isGuestAccount: { type: Boolean, default: false },
+    lastLogin: { type: Date, default: null },
+
+    savedListings: { type: [String], default: [] },
+    viewHistory:   { type: [String], default: [] }, // tối đa 50, mới nhất trước
+
+    headerText: { type: String, default: "" },
+    footerText: { type: String, default: "" },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 const User = models.User || mongoose.model("User", userSchema);
-
 export default User;

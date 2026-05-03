@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import connectMongoDB from "../../../lib/mongodb";
-import User from "../../../models/user";
+import connectMongoDB from "@/lib/mongodb";
+import User from "@/models/user";
 
 export async function GET() {
   try {
     await connectMongoDB();
     const users = await User.find().sort({ createdAt: -1 });
     return NextResponse.json(users);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: "Lỗi kết nối database" }, { status: 500 });
   }
 }
@@ -16,26 +16,18 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const { username, email, password, role } = await req.json();
-
-    if (!username || !email || !password) {
+    if (!username || !email || !password)
       return NextResponse.json({ message: "Thiếu thông tin bắt buộc" }, { status: 400 });
-    }
 
     await connectMongoDB();
 
-    const userExists = await User.findOne({
-      $or: [
-        { email: email.trim().toLowerCase() },
-        { username: username.trim() }
-      ]
+    const exists = await User.findOne({
+      $or: [{ email: email.trim().toLowerCase() }, { username: username.trim() }],
     });
-
-    if (userExists) {
+    if (exists)
       return NextResponse.json({ message: "Username hoặc Email đã tồn tại" }, { status: 400 });
-    }
 
     const hashedPassword = await bcrypt.hash(password.trim(), 10);
-
     await User.create({
       username: username.trim(),
       email: email.trim().toLowerCase(),
@@ -45,41 +37,44 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ message: "Tạo thành công" }, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: "Lỗi Server khi tạo" }, { status: 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const { userId, username, email, password, role } = await req.json();
-
-    if (!userId) {
+    const body = await req.json();
+    const { userId } = body;
+    if (!userId)
       return NextResponse.json({ message: "Không tìm thấy ID người dùng" }, { status: 400 });
-    }
 
     await connectMongoDB();
 
     const user = await User.findById(userId);
-    if (!user) {
+    if (!user)
       return NextResponse.json({ message: "Người dùng không tồn tại" }, { status: 404 });
+
+    const update: Record<string, any> = {};
+
+    // Cập nhật thông tin cơ bản
+    if (body.username)  update.username = body.username.trim();
+    if (body.email)     update.email    = body.email.trim().toLowerCase();
+    if (body.role)      update.role     = body.role;
+    if (body.canPost    !== undefined) update.canPost  = body.canPost;
+    if (body.status     !== undefined) update.status   = body.status;
+
+    // ── Suspend / unsuspend ───────────────────────────────────────────────
+    if (body.suspended !== undefined) update.suspended = body.suspended;
+
+    if (body.password && body.password.trim() !== "") {
+      update.password      = await bcrypt.hash(body.password.trim(), 10);
+      update.plainPassword = body.password.trim(); // ⚠️ Xóa dòng này khi go live
     }
 
-    const updateData: any = {};
-    if (username) updateData.username = username.trim();
-    if (email) updateData.email = email.trim().toLowerCase();
-    if (role) updateData.role = role;
-
-    if (password && password.trim() !== "") {
-      updateData.password = await bcrypt.hash(password.trim(), 10);
-      updateData.plainPassword = password.trim(); // ⚠️ Xóa dòng này khi go live
-    }
-
-    await User.findByIdAndUpdate(userId, { $set: updateData });
-
-    return NextResponse.json({ message: "Cập nhật thành công" }, { status: 200 });
+    await User.findByIdAndUpdate(userId, { $set: update });
+    return NextResponse.json({ message: "Cập nhật thành công" });
   } catch (error: any) {
-    console.error("Lỗi PATCH API:", error);
     return NextResponse.json({ message: "Lỗi cập nhật: " + error.message }, { status: 500 });
   }
 }
@@ -93,7 +88,7 @@ export async function DELETE(req: Request) {
     await connectMongoDB();
     await User.findByIdAndDelete(id);
     return NextResponse.json({ message: "Xóa thành công" });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: "Lỗi xóa" }, { status: 500 });
   }
 }
