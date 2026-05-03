@@ -163,18 +163,20 @@ function CostsEditor({ item, onSaved }: { item: ListingItem; onSaved: (updated: 
   );
 }
 
-// ─── MyListingsTable ──────────────────────────────────────────────────────────
-function MyListingsTable({ items, onAction, onCostsSaved }: {
+function MyListingsTable({ items, onAction, onCostsSaved, headerText, defaultHeaderPlaceholder, onSaveHeader }: {
   items: ListingItem[];
   onAction: (item: ListingItem, action: "edit" | "hide" | "delete") => void;
   onCostsSaved: (updated: ListingItem) => void;
+  headerText: string;
+  defaultHeaderPlaceholder: string;
+  onSaveHeader: (v: string) => void;
 }) {
   const [sortCol, setSortCol]           = useState<SortCol>("avail");
   const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
   const [filterAvail, setFilterAvail]   = useState<Set<"now" | "soon" | "late">>(new Set());
   const [filterHidden, setFilterHidden] = useState<"all" | "visible" | "hidden">("all");
-  // FIX #3: customFilters was shadowed locally — lifted to component state and wired correctly
-  const [customFilters, setCustomFilters] = useState<[string, string, string]>(["", "", ""]);
+  const [andFilter, setAndFilter]       = useState("");   // nhiều điều kiện cách bằng dấu phẩy — TẤT CẢ phải khớp
+  const [orFilter, setOrFilter]         = useState("");   // nhiều điều kiện cách bằng dấu phẩy — 1 cái khớp là đủ
   const [selected, setSelected]         = useState<ListingItem | null>(null);
 
   function toggleSort(col: SortCol) {
@@ -186,21 +188,31 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
   }
   const sortIcon = (col: SortCol) => sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : " ↕";
 
-  // process — FIX #3: filter logic now uses the live customFilters state
+  function matchItem(l: ListingItem, kw: string) {
+    const k = kw.trim().toLowerCase();
+    if (!k) return true;
+    return (
+      l.title.toLowerCase().includes(k) ||
+      (l.address || "").toLowerCase().includes(k) ||
+      (l.highlights || []).some(h => h.toLowerCase().includes(k))
+    );
+  }
+
   let list = [...items];
   if (filterAvail.size > 0) list = list.filter(l => filterAvail.has(getAvailInfo(l.availableDate).type as any));
   if (filterHidden === "visible") list = list.filter(l => l.status !== "hide");
   if (filterHidden === "hidden")  list = list.filter(l => l.status === "hide");
 
-  // Apply all non-empty keyword filters (AND logic)
-  for (const kw of customFilters) {
-    const k = kw.trim().toLowerCase();
-    if (!k) continue;
-    list = list.filter(l =>
-      l.title.toLowerCase().includes(k) ||
-      (l.address || "").toLowerCase().includes(k) ||
-      (l.highlights || []).some(h => h.toLowerCase().includes(k))
-    );
+  // AND: tách bằng dấu phẩy, tất cả từ khoá đều phải khớp
+  const andTerms = andFilter.split(",").map(s => s.trim()).filter(Boolean);
+  if (andTerms.length > 0) {
+    list = list.filter(l => andTerms.every(kw => matchItem(l, kw)));
+  }
+
+  // OR: tách bằng dấu phẩy, ít nhất 1 từ khoá khớp
+  const orTerms = orFilter.split(",").map(s => s.trim()).filter(Boolean);
+  if (orTerms.length > 0) {
+    list = list.filter(l => orTerms.some(kw => matchItem(l, kw)));
   }
 
   list.sort((a, b) => {
@@ -251,32 +263,50 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
         <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{list.length} tin</span>
       </div>
 
-      {/* ── FIX #3: Custom text search — properly controlled inputs ── */}
-      <div style={{ padding: "8px 12px", borderBottom: "1px solid #f0f0f0", display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {([0, 1, 2] as const).map(i => (
+      {/* ── 2 ô tìm kiếm: AND + OR ── */}
+      <div style={{ padding: "8px 12px", borderBottom: "1px solid #f0f0f0", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        {/* AND box */}
+        <div style={{ flex: "1 1 140px", position: "relative" }}>
+          <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 9, fontWeight: 700, background: "#e8f5e9", color: "#2e7d32", padding: "1px 5px", borderRadius: 6, pointerEvents: "none" }}>VÀ</span>
           <input
-            key={i}
-            value={customFilters[i]}
-            placeholder={`Tìm kiếm ${i + 1}...`}
-            onChange={e => {
-              const next: [string, string, string] = [...customFilters] as [string, string, string];
-              next[i] = e.target.value;
-              setCustomFilters(next);
-            }}
-            style={{
-              flex: "1 1 80px", minWidth: 80, padding: "5px 10px",
-              border: "1px solid #e0e0e0", borderRadius: 10,
-              fontSize: 12, fontFamily: "inherit", outline: "none",
-            }}
+            value={andFilter}
+            placeholder="vd: quận 1, ban công (cách bằng dấu phẩy)"
+            onChange={e => setAndFilter(e.target.value)}
+            style={{ width: "100%", padding: "6px 10px 6px 34px", border: "1px solid #b2dfdb", borderRadius: 10, fontSize: 12, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
           />
-        ))}
-        {customFilters.some(f => f.trim()) && (
+        </div>
+        {/* OR box */}
+        <div style={{ flex: "1 1 140px", position: "relative" }}>
+          <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 9, fontWeight: 700, background: "#fff8e1", color: "#b08500", padding: "1px 5px", borderRadius: 6, pointerEvents: "none" }}>HOẶC</span>
+          <input
+            value={orFilter}
+            placeholder="vd: wifi, điều hoà (cách bằng dấu phẩy)"
+            onChange={e => setOrFilter(e.target.value)}
+            style={{ width: "100%", padding: "6px 10px 6px 42px", border: "1px solid #ffe082", borderRadius: 10, fontSize: 12, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+          />
+        </div>
+        {(andFilter || orFilter) && (
           <button
-            onClick={() => setCustomFilters(["", "", ""])}
-            style={{ padding: "5px 10px", borderRadius: 10, fontSize: 11, cursor: "pointer", background: "#fee", color: "#c00", border: "1px solid #fcc", fontWeight: 600 }}>
+            onClick={() => { setAndFilter(""); setOrFilter(""); }}
+            style={{ padding: "5px 10px", borderRadius: 10, fontSize: 11, cursor: "pointer", background: "#fee", color: "#c00", border: "1px solid #fcc", fontWeight: 600, flexShrink: 0 }}>
             ✕
           </button>
         )}
+      </div>
+
+      {/* ── Header tiêu đề xanh — nằm giữa search và hàng tiêu đề cột ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 14px", gap: 8, background: `${GREEN}22`, borderBottom: `2px solid ${GREEN}` }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: GREEN, flex: 1, lineHeight: 1.4 }}>
+          {headerText || defaultHeaderPlaceholder}
+        </span>
+        <button
+          onClick={() => {
+            const v = window.prompt("Sửa tiêu đề:", headerText || defaultHeaderPlaceholder);
+            if (v !== null) onSaveHeader(v);
+          }}
+          style={{ background: `${GREEN}22`, border: `1px solid ${GREEN}55`, borderRadius: 8, color: GREEN, fontSize: 13, cursor: "pointer", padding: "2px 8px", flexShrink: 0 }}>
+          🖊️
+        </button>
       </div>
 
       {/* ── Table ── */}
@@ -739,10 +769,15 @@ export default function UserPage() {
 
             {/* Card bọc toàn bộ bảng */}
             <div style={{ margin: "0 16px", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.08)" }}>
-              {/* Header: nằm trên cùng của card, trên filter bar và trên hàng tiêu đề cột */}
-              <EditableBar text={headerText} placeholder={defaultHeaderPlaceholder} label="Header" onSave={v => saveText("headerText", v)} pos="top" />
               <div style={{ background: "#fff" }}>
-                <MyListingsTable items={myListings} onAction={handleListingAction} onCostsSaved={handleCostsSaved} />
+                <MyListingsTable
+                  items={myListings}
+                  onAction={handleListingAction}
+                  onCostsSaved={handleCostsSaved}
+                  headerText={headerText}
+                  defaultHeaderPlaceholder={defaultHeaderPlaceholder}
+                  onSaveHeader={v => saveText("headerText", v)}
+                />
               </div>
               <EditableBar text={footerText} placeholder={defaultFooterPlaceholder} label="Footer" onSave={v => saveText("footerText", v)} pos="bottom" />
             </div>
