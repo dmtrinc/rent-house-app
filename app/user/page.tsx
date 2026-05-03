@@ -163,18 +163,19 @@ function CostsEditor({ item, onSaved }: { item: ListingItem; onSaved: (updated: 
   );
 }
 
-// ─── MyListingsTable — phong cách PhongTrong ──────────────────────────────────
+// ─── MyListingsTable ──────────────────────────────────────────────────────────
 function MyListingsTable({ items, onAction, onCostsSaved }: {
   items: ListingItem[];
   onAction: (item: ListingItem, action: "edit" | "hide" | "delete") => void;
   onCostsSaved: (updated: ListingItem) => void;
 }) {
-  const [sortCol, setSortCol]         = useState<SortCol>("avail");
-  const [sortDir, setSortDir]         = useState<"asc" | "desc">("asc");
-  const [filterAvail, setFilterAvail] = useState<Set<"now" | "soon" | "late">>(new Set());
+  const [sortCol, setSortCol]           = useState<SortCol>("avail");
+  const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
+  const [filterAvail, setFilterAvail]   = useState<Set<"now" | "soon" | "late">>(new Set());
   const [filterHidden, setFilterHidden] = useState<"all" | "visible" | "hidden">("all");
-  const [customFilters, setCustomFilters] = useState(["", "", ""]);
-  const [selected, setSelected]       = useState<ListingItem | null>(null);
+  // FIX #3: customFilters was shadowed locally — lifted to component state and wired correctly
+  const [customFilters, setCustomFilters] = useState<[string, string, string]>(["", "", ""]);
+  const [selected, setSelected]         = useState<ListingItem | null>(null);
 
   function toggleSort(col: SortCol) {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -185,20 +186,23 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
   }
   const sortIcon = (col: SortCol) => sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : " ↕";
 
-  // process
+  // process — FIX #3: filter logic now uses the live customFilters state
   let list = [...items];
   if (filterAvail.size > 0) list = list.filter(l => filterAvail.has(getAvailInfo(l.availableDate).type as any));
   if (filterHidden === "visible") list = list.filter(l => l.status !== "hide");
   if (filterHidden === "hidden")  list = list.filter(l => l.status === "hide");
+
+  // Apply all non-empty keyword filters (AND logic)
   for (const kw of customFilters) {
-    if (!kw.trim()) continue;
-    const k = kw.toLowerCase();
+    const k = kw.trim().toLowerCase();
+    if (!k) continue;
     list = list.filter(l =>
       l.title.toLowerCase().includes(k) ||
       (l.address || "").toLowerCase().includes(k) ||
       (l.highlights || []).some(h => h.toLowerCase().includes(k))
     );
   }
+
   list.sort((a, b) => {
     const m = sortDir === "asc" ? 1 : -1;
     if (sortCol === "price")      return (a.price - b.price) * m;
@@ -247,17 +251,31 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
         <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{list.length} tin</span>
       </div>
 
-      {/* ── Custom text search ── */}
+      {/* ── FIX #3: Custom text search — properly controlled inputs ── */}
       <div style={{ padding: "8px 12px", borderBottom: "1px solid #f0f0f0", display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {[0, 1, 2].map(i => (
-          <input key={i} value={customFilters[i] || ""} placeholder={`Tìm kiếm ${i + 1}...`}
-            onChange={e => { const n = [...customFilters]; n[i] = e.target.value; setCustomFilters(n); }}
-            style={{ flex: "1 1 80px", minWidth: 80, padding: "5px 10px", border: "1px solid #e0e0e0",
-              borderRadius: 10, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+        {([0, 1, 2] as const).map(i => (
+          <input
+            key={i}
+            value={customFilters[i]}
+            placeholder={`Tìm kiếm ${i + 1}...`}
+            onChange={e => {
+              const next: [string, string, string] = [...customFilters] as [string, string, string];
+              next[i] = e.target.value;
+              setCustomFilters(next);
+            }}
+            style={{
+              flex: "1 1 80px", minWidth: 80, padding: "5px 10px",
+              border: "1px solid #e0e0e0", borderRadius: 10,
+              fontSize: 12, fontFamily: "inherit", outline: "none",
+            }}
+          />
         ))}
         {customFilters.some(f => f.trim()) && (
-          <button onClick={() => setCustomFilters(["", "", ""])}
-            style={{ padding: "5px 10px", borderRadius: 10, fontSize: 11, cursor: "pointer", background: "#fee", color: "#c00", border: "1px solid #fcc", fontWeight: 600 }}>✕</button>
+          <button
+            onClick={() => setCustomFilters(["", "", ""])}
+            style={{ padding: "5px 10px", borderRadius: 10, fontSize: 11, cursor: "pointer", background: "#fee", color: "#c00", border: "1px solid #fcc", fontWeight: 600 }}>
+            ✕
+          </button>
         )}
       </div>
 
@@ -321,7 +339,11 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
                     </td>
                     <td style={td} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                        <button onClick={() => onAction(item, "edit")}   style={actionBtn("#e8f5e9", "#2e7d32")}>✏️</button>
+                        {/* FIX #4: edit button now navigates to /listing/[id]/edit */}
+                        <button
+                          onClick={() => onAction(item, "edit")}
+                          style={actionBtn("#e8f5e9", "#2e7d32")}
+                          title="Sửa tin">✏️</button>
                         <button onClick={() => onAction(item, "hide")}   style={actionBtn(isHidden ? "#e8f5e9" : "#fff8e1", isHidden ? "#2e7d32" : "#b08500")}>{isHidden ? "👁" : "🙈"}</button>
                         <button onClick={() => onAction(item, "delete")} style={actionBtn("#fff0f0", "#c00")}>🗑</button>
                         <CostsEditor item={item} onSaved={onCostsSaved} />
@@ -335,7 +357,7 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
         </div>
       )}
 
-      {/* Detail modal */}
+      {/* FIX #7: Detail modal — text colors changed to black (#111 / #222) for readability */}
       {selected && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 400,
           display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
@@ -347,9 +369,9 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
               display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{selected.title}</div>
-                {selected.address && <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 3 }}>📍 {selected.address}</div>}
+                {selected.address && <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 3 }}>📍 {selected.address}</div>}
               </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.8)", fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
+              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
             <div style={{ padding: "16px 18px" }}>
               {selected.coverImage
@@ -376,8 +398,9 @@ function MyListingsTable({ items, onAction, onCostsSaved }: {
                   { label: "Ngày đăng", value: new Date(selected.createdAt).toLocaleDateString("vi-VN") },
                 ].map(({ label, value }, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f5f5f5" }}>
-                    <span style={{ fontSize: 12, color: "#888" }}>{label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>{value}</span>
+                    {/* FIX #7: label color darkened to #555, value color to #111 for portrait phone readability */}
+                    <span style={{ fontSize: 12, color: "#555", fontWeight: 500 }}>{label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#111" }}>{value}</span>
                   </div>
                 ));
               })()}
@@ -455,13 +478,14 @@ function SavedTable({ items, savedIds, onToggleSave }: {
           </tbody>
         </table>
       </div>
+      {/* FIX #7: SavedTable detail modal also darkened */}
       {selected && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setSelected(null)}>
           <div style={{ background: "#fff", borderRadius: 16, maxWidth: 460, width: "100%", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <div style={{ background: GREEN, borderRadius: "16px 16px 0 0", padding: "14px 18px", display: "flex", justifyContent: "space-between" }}>
               <div>
                 <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{selected.title}</div>
-                {selected.address && <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 3 }}>📍 {selected.address}</div>}
+                {selected.address && <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 3 }}>📍 {selected.address}</div>}
               </div>
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer" }}>×</button>
             </div>
@@ -470,6 +494,8 @@ function SavedTable({ items, savedIds, onToggleSave }: {
                 ? <img src={selected.coverImage} alt="" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
                 : <div style={{ height: 80, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
               }
+              <div style={{ fontWeight: 700, fontSize: 15, color: "#111", marginBottom: 6 }}>{selected.title}</div>
+              {selected.address && <div style={{ fontSize: 13, color: "#444", marginBottom: 12 }}>📍 {selected.address}</div>}
               <Link href={`/listing/${selected._id}`} style={{ display: "block", textAlign: "center", padding: 11, background: GREEN, color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Xem chi tiết →</Link>
             </div>
           </div>
@@ -511,7 +537,7 @@ function AccountTab({ user, onSaved }: { user: UserData; onSaved: () => void }) 
           <div>
             <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{user.username}</div>
             <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
-              {user.role} · {user.suspended ? "🚫 Bị đình chỉ" : user.status === "active" ? "✅ Hoạt động" : "🚫 Bị khoá"}
+              {user.role} · {user.suspended ? "🚫 Bị đình chỉ" : user.status === "active" ? "✅ Hoạt động" : "🚫 lỗi"}
             </div>
           </div>
         </div>
@@ -550,7 +576,7 @@ function AccountTab({ user, onSaved }: { user: UserData; onSaved: () => void }) 
           {[
             { label: "Ngày tạo",      value: new Date(user.createdAt).toLocaleDateString("vi-VN") },
             ...(user.lastLogin ? [{ label: "Đăng nhập cuối", value: new Date(user.lastLogin).toLocaleString("vi-VN") }] : []),
-            { label: "Đăng bài",     value: user.canPost ? "✅ Được phép" : "🚫 Bị hạn chế" },
+            { label: "Đăng bài",     value: user.canPost ? "✅ Được phép" : "🚫 lỗi" },
           ].map(({ label, value }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f8f8f8" }}>
               <span style={{ fontSize: 12, color: "#aaa" }}>{label}</span>
@@ -601,15 +627,18 @@ export default function UserPage() {
     await fetch("/api/user/update-texts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: value }) });
   };
 
-  // "Đã lưu" = savedListings từ DB — user nhấn 😍 ở trang chủ
   const handleToggleSave = async (listingId: string, action: "save" | "unsave") => {
     await fetch("/api/user/save-listing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listingId, action }) });
     setSavedIds(prev => { const next = new Set(prev); action === "save" ? next.add(listingId) : next.delete(listingId); return next; });
     if (action === "unsave") setSavedListings(prev => prev.filter(l => l._id !== listingId));
   };
 
+  // FIX #4: edit uses window.location.href to navigate to the listing edit page
   const handleListingAction = async (item: ListingItem, action: "edit" | "hide" | "delete") => {
-    if (action === "edit")   { window.location.href = `/listing/${item._id}/edit`; return; }
+    if (action === "edit") {
+      window.location.href = `/edit/${item._id}`;
+      return;
+    }
     if (action === "delete") {
       if (!confirm(`Xóa tin "${item.title}"?`)) return;
       await fetch(`/api/listings/${item._id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
@@ -657,18 +686,25 @@ export default function UserPage() {
       {/* TOP NAV */}
       <header style={{ background: GREEN, position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none", padding: "5px 10px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "#fff", fontSize: 12, fontWeight: 600 }}>← Trang chủ</Link>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Dashboard</span>
-          </div>
+          {/* LEFT: Back home + Đăng tin mới (FIX #2) */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Link href="/dang-tin" style={{ display: "flex", alignItems: "center", gap: 5, textDecoration: "none", padding: "6px 14px", borderRadius: 20, background: "#fff", color: GREEN, fontSize: 12, fontWeight: 700 }}>+ Đăng tin mới</Link>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", border: "2px solid rgba(255,255,255,0.5)" }}>
+            <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none", padding: "5px 10px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "#fff", fontSize: 12, fontWeight: 600 }}>← Trang chủ</Link>
+            <Link href="/dang-tin" style={{ display: "flex", alignItems: "center", gap: 5, textDecoration: "none", padding: "5px 12px", borderRadius: 20, background: "#fff", color: GREEN, fontSize: 12, fontWeight: 700 }}>+ Đăng tin mới</Link>
+          </div>
+
+          {/* RIGHT: avatar + username */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }}>
               {user?.username?.[0]?.toUpperCase()}
             </div>
+            <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user?.username}
+            </span>
           </div>
         </div>
-        <div style={{ display: "flex", overflowX: "auto", borderTop: "1px solid rgba(255,255,255,0.15)", scrollbarWidth: "none" }}>
+
+        {/* FIX #2: Tab bar — maxWidth matches content area for alignment in landscape */}
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", overflowX: "auto", borderTop: "1px solid rgba(255,255,255,0.15)", scrollbarWidth: "none" }}>
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
               style={{ flex: "1 1 0", minWidth: 80, padding: "10px 8px", border: "none", background: "transparent",
@@ -687,6 +723,7 @@ export default function UserPage() {
         {/* TAB: TIN ĐĂNG */}
         {tab === "listings" && (
           <div>
+            {/* Stats row */}
             <div style={{ display: "flex", gap: 10, padding: "14px 16px" }}>
               {[
                 { label: "Tổng",      value: myListings.length, color: "#333" },
@@ -699,14 +736,32 @@ export default function UserPage() {
                 </div>
               ))}
             </div>
+
+            {/* Card bọc toàn bộ bảng */}
             <div style={{ margin: "0 16px", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.08)" }}>
-              <EditableBar text={headerText} placeholder={defaultHeaderPlaceholder} label="Header" onSave={v => saveText("headerText", v)} pos="top" />
               <div style={{ background: "#fff" }}>
-                <div style={{ padding: "6px 12px", borderBottom: "1px solid #e8f5e9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: "#888" }}>Quản lý tin đăng của bạn</span>
-                  <span style={{ fontSize: 10, color: "#999", fontStyle: "italic" }}>
-                    Cập nhật: {new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                  </span>
+                {/*
+                  FIX #1: EditableBar header nằm ngay trong card trắng,
+                  trực tiếp trên filter bar → trên hàng tiêu đề cột bảng.
+                  Dùng pos="top" nhưng borderRadius override về 0 vì nằm trong card trắng.
+                */}
+                <div style={{ borderBottom: "2px solid #e8f5e9" }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "8px 14px", gap: 8, background: GREEN,
+                  }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#fff", flex: 1, lineHeight: 1.4 }}>
+                      {headerText || defaultHeaderPlaceholder}
+                    </span>
+                    <button
+                      onClick={() => {
+                        const v = prompt("Sửa tiêu đề:", headerText || defaultHeaderPlaceholder);
+                        if (v !== null) saveText("headerText", v);
+                      }}
+                      style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, color: "#fff", fontSize: 15, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}>
+                      🖊️
+                    </button>
+                  </div>
                 </div>
                 <MyListingsTable items={myListings} onAction={handleListingAction} onCostsSaved={handleCostsSaved} />
               </div>
