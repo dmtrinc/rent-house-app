@@ -692,14 +692,14 @@ export default function UserPage() {
             <Link href="/dang-tin" style={{ display: "flex", alignItems: "center", gap: 5, textDecoration: "none", padding: "5px 12px", borderRadius: 20, background: "#fff", color: GREEN, fontSize: 12, fontWeight: 700 }}>+ Đăng tin mới</Link>
           </div>
 
-          {/* RIGHT: avatar + username */}
+          {/* RIGHT: username + avatar (tên trước, avatar sau) */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }}>
-              {user?.username?.[0]?.toUpperCase()}
-            </div>
             <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user?.username}
             </span>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }}>
+              {user?.username?.[0]?.toUpperCase()}
+            </div>
           </div>
         </div>
 
@@ -739,30 +739,9 @@ export default function UserPage() {
 
             {/* Card bọc toàn bộ bảng */}
             <div style={{ margin: "0 16px", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.08)" }}>
+              {/* Header: nằm trên cùng của card, trên filter bar và trên hàng tiêu đề cột */}
+              <EditableBar text={headerText} placeholder={defaultHeaderPlaceholder} label="Header" onSave={v => saveText("headerText", v)} pos="top" />
               <div style={{ background: "#fff" }}>
-                {/*
-                  FIX #1: EditableBar header nằm ngay trong card trắng,
-                  trực tiếp trên filter bar → trên hàng tiêu đề cột bảng.
-                  Dùng pos="top" nhưng borderRadius override về 0 vì nằm trong card trắng.
-                */}
-                <div style={{ borderBottom: "2px solid #e8f5e9" }}>
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "8px 14px", gap: 8, background: GREEN,
-                  }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#fff", flex: 1, lineHeight: 1.4 }}>
-                      {headerText || defaultHeaderPlaceholder}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const v = prompt("Sửa tiêu đề:", headerText || defaultHeaderPlaceholder);
-                        if (v !== null) saveText("headerText", v);
-                      }}
-                      style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, color: "#fff", fontSize: 15, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}>
-                      🖊️
-                    </button>
-                  </div>
-                </div>
                 <MyListingsTable items={myListings} onAction={handleListingAction} onCostsSaved={handleCostsSaved} />
               </div>
               <EditableBar text={footerText} placeholder={defaultFooterPlaceholder} label="Footer" onSave={v => saveText("footerText", v)} pos="bottom" />
