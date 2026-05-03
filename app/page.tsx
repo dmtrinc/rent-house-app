@@ -131,6 +131,12 @@ export default function HomePage() {
     transition: "transform 0.15s, opacity 0.15s, box-shadow 0.15s",
   });
 
+  // Dashboard href theo role
+  const dashboardHref =
+    user?.role === "admin" ? "/admin" :
+    user?.role === "mod"   ? "/mod"   :
+                             "/user";
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f8f8" }}>
 
@@ -183,9 +189,9 @@ export default function HomePage() {
           {/* Nav buttons */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
 
-            {/* Nút báo lỗi — fixed góc trên trái */}
+            {/* Nút báo lỗi — fixed góc trên phải */}
             <button
-              onClick={() => {/* TODO: mở form báo lỗi */ }}
+              onClick={() => {/* TODO: mở form báo lỗi */}}
               style={{
                 position: "fixed", top: "-1px", right: "-1px", zIndex: 200,
                 background: "none", border: "none", boxShadow: "none",
@@ -237,138 +243,122 @@ export default function HomePage() {
               </span>
             </Link>
 
+            {/* Nút Account — tất cả role */}
             {user ? (
-  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Link href={dashboardHref} style={{ textDecoration: "none" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      borderRadius: "999px",
+                      background: "rgba(255,255,255,0.15)",
+                      border: "1.5px solid rgba(255,255,255,0.3)",
+                      overflow: "hidden",
+                      transition: "transform 0.15s, box-shadow 0.15s",
+                    }}
+                    onMouseEnter={e => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.transform = "scale(1.06)";
+                      el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)";
+                    }}
+                    onMouseLeave={e => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.transform = "scale(1)";
+                      el.style.boxShadow = "none";
+                    }}
+                  >
+                    {/* Tên + role */}
+                    <div style={{ padding: "2px 10px 2px 12px", textAlign: "center", lineHeight: 1.2 }}>
+                      <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}>
+                        {user.username}
+                      </div>
+                      <div style={{
+                        fontSize: "10px",
+                        fontWeight: "700",
+                        color: user.role === "admin"
+                          ? "#FF8C00"
+                          : user.role === "mod"
+                            ? "#ce93d8"
+                            : "rgba(255,255,255,0.65)",
+                      }}>
+                        {user.role}
+                      </div>
+                    </div>
 
-    {(user.role === "admin" || user.role === "mod") ? (
-      <Link
-        href={user.role === "admin" ? "/admin" : "/mod"}
-        style={{ textDecoration: "none" }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            borderRadius: "999px",
-            background: "rgba(255,255,255,0.15)",
-            border: "1.5px solid rgba(255,255,255,0.3)",
-            overflow: "hidden",
-            transition: "transform 0.15s, box-shadow 0.15s",
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.transform = "scale(1.06)";
-            el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)";
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.transform = "scale(1)";
-            el.style.boxShadow = "none";
-          }}
-        >
-          <div style={{ padding: "2px 10px 2px 10px", textAlign: "center", lineHeight: 1.2 }}>
-            <div style={{ fontSize: "10px", fontWeight: "600", color: "#fff" }}>
-              {user.username}
-            </div>
-            <div style={{
-              fontSize: "10px",
-              fontWeight: "700",
-              color: user.role === "admin" ? "#FF8C00" : "#ce93d8",
-            }}>
-              {user.role}
-            </div>
-          </div>
-
-          <button
-            onClick={e => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleLogout();
-            }}
-            title="Đăng xuất"
-            style={{
-              width: "23px",
-              height: "23px",
-              borderRadius: "50%",
-              margin: "2px",
-              background: user.role === "admin" ? "rgba(255,140,0,0.25)" : "rgba(156,39,176,0.25)",
-              border: `2px solid ${user.role === "admin" ? "#FF8C00" : "#ce93d8"}`,
-              color: user.role === "admin" ? "#FF8C00" : "#ce93d8",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background =
-                user.role === "admin" ? "rgba(255,140,0,0.45)" : "rgba(156,39,176,0.45)";
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background =
-                user.role === "admin" ? "rgba(255,140,0,0.25)" : "rgba(156,39,176,0.25)";
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64" />
-              <line x1="12" y1="2" x2="12" y2="12" />
-            </svg>
-          </button>
-        </div>
-      </Link>
-
-    ) : (
-      <div
-        style={{
-          display: "flex", alignItems: "center", gap: "8px",
-          padding: "4px 4px 4px 10px",
-          border: "1px solid rgba(255,255,255,0.3)",
-          borderRadius: "21px",
-          background: "rgba(255,255,255,0.1)",
-          transition: "transform 0.15s, box-shadow 0.15s",
-        }}
-        onMouseEnter={e => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.transform = "scale(1.05)";
-          el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)";
-        }}
-        onMouseLeave={e => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.transform = "scale(1)";
-          el.style.boxShadow = "none";
-        }}
-      >
-        <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
-          {user.username}
-        </div>
-        <button
-          onClick={handleLogout}
-          style={{
-            width: "28px", height: "28px", borderRadius: "50%",
-            background: "rgba(255,255,255,0.2)", color: "#fff",
-            border: "none", fontSize: "14px", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          ⎋
-        </button>
-      </div>
-    )}
-
-  </div>
-) : (
-  <Link
-    href="/login"
-    style={navBtnStyle()}
-    onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1.06)"; el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)"; }}
-    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1)"; el.style.boxShadow = "none"; }}
-  >
-    Đăng nhập
-  </Link>
-)}
-
+                    {/* Nút logout tròn */}
+                    <button
+                      onClick={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleLogout();
+                      }}
+                      title="Đăng xuất"
+                      style={{
+                        width: "26px",
+                        height: "26px",
+                        borderRadius: "50%",
+                        margin: "2px",
+                        background: user.role === "admin"
+                          ? "rgba(255,140,0,0.25)"
+                          : user.role === "mod"
+                            ? "rgba(156,39,176,0.25)"
+                            : "rgba(255,255,255,0.15)",
+                        border: `2px solid ${
+                          user.role === "admin"
+                            ? "#FF8C00"
+                            : user.role === "mod"
+                              ? "#ce93d8"
+                              : "rgba(255,255,255,0.4)"
+                        }`,
+                        color: user.role === "admin"
+                          ? "#FF8C00"
+                          : user.role === "mod"
+                            ? "#ce93d8"
+                            : "#fff",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        transition: "background 0.15s",
+                      }}
+                      onMouseEnter={e => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          user.role === "admin"
+                            ? "rgba(255,140,0,0.45)"
+                            : user.role === "mod"
+                              ? "rgba(156,39,176,0.45)"
+                              : "rgba(255,255,255,0.3)";
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          user.role === "admin"
+                            ? "rgba(255,140,0,0.25)"
+                            : user.role === "mod"
+                              ? "rgba(156,39,176,0.25)"
+                              : "rgba(255,255,255,0.15)";
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64" />
+                        <line x1="12" y1="2" x2="12" y2="12" />
+                      </svg>
+                    </button>
+                  </div>
+                </Link>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                style={navBtnStyle()}
+                onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1.06)"; el.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)"; }}
+                onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = "scale(1)"; el.style.boxShadow = "none"; }}
+              >
+                Đăng nhập
+              </Link>
+            )}
 
           </div>
         </div>
