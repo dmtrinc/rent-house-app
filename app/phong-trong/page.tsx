@@ -15,10 +15,19 @@ interface Listing {
   title: string;
   address: string;
   price: number;
+  description?: string;
+  coverImage?: string;
+  images?: string[];
+  status?: string;
+  category?: string;
+  amenities?: string[];
+  contactPhone?: string;
+  deviceId?: string;
+  userId?: string;
   availableDate?: string | null;
   highlights?: string[];
-  status?: string;
-  coverImage?: string;
+  autoHideDays?: number | null;
+  autoDeleteDays?: number | null;
   costs?: Partial<RoomCosts>;
 }
 
@@ -66,6 +75,60 @@ function highlightsStr(listing: Listing): string {
   return (listing.highlights || []).join(", ");
 }
 
+/* ── Keyword filter helpers ── */
+function parseKeywords(raw: string): string[] {
+  return raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+}
+
+/**
+ * Build a full-text haystack from ALL listing fields:
+ * title, address, price, contactPhone, availableDate,
+ * highlights, amenities, description, costs
+ */
+function buildHaystack(listing: Listing): string {
+  const costs = listing.costs;
+  return [
+    listing.title,
+    listing.address,
+    // Giá thuê — số nguyên + dạng "Xtr"
+    listing.price != null ? String(listing.price) : "",
+    listing.price != null ? (listing.price / 1_000_000).toFixed(1) + "tr" : "",
+    // Số điện thoại liên hệ
+    listing.contactPhone ?? "",
+    // Ngày trống
+    listing.availableDate
+      ? new Date(listing.availableDate).toLocaleDateString("vi-VN")
+      : "trống sẵn",
+    // Đặc điểm nổi bật
+    ...(listing.highlights ?? []),
+    // Nội thất / tiện nghi
+    ...(listing.amenities ?? []),
+    // Mô tả
+    listing.description ?? "",
+    // Danh mục
+    listing.category ?? "",
+    // Chi phí dạng text
+    costs?.elec != null
+      ? `${costs.elec} ${(Number(costs.elec) / 1000).toFixed(0)}k`
+      : "",
+    costs?.water ?? "",
+    costs?.sv    ?? "",
+    costs?.bike  ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchesKeywords(listing: Listing): (keywords: string[]) => boolean {
+  const haystack = buildHaystack(listing);
+  return (keywords) => keywords.every(k => haystack.includes(k));
+}
+
+function matchesAnyKeyword(listing: Listing): (keywords: string[]) => boolean {
+  const haystack = buildHaystack(listing);
+  return (keywords) => keywords.some(k => haystack.includes(k));
+}
+
 /* ════════════════════════════════════════════════════════════════ */
 export default function PhongTrongPage() {
   const [items,   setItems]   = useState<Listing[]>([]);
@@ -75,11 +138,16 @@ export default function PhongTrongPage() {
   // Filter: multi-select; empty = show all
   const [filters, setFilters] = useState<Set<"now" | "soon" | "late">>(new Set());
 
+  // Keyword filters
+  const [andKeywords, setAndKeywords] = useState("");
+  const [orKeywords,  setOrKeywords]  = useState("");
+  const [notKeywords, setNotKeywords] = useState("");
+
   // Sort
   const [sortCol, setSortCol] = useState<"avail" | "price" | "address" | "elec" | "highlights">("avail");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Config (title + footer) — synced with /api/admin/config in DB
+  // Config (title + footer)
   const [pageTitle,  setPageTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
   const [footerText, setFooterText] = useState(DEFAULT_PHONGTRONG_FOOTER);
   const [editTitle,  setEditTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
@@ -116,7 +184,6 @@ export default function PhongTrongPage() {
   async function saveConfig() {
     setSaving(true); setSaveMsg("");
     try {
-      // Chỉ gửi đúng 2 field cần update — route dùng  nên không mất field khác
       const res = await fetch("/api/admin/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,8 +221,7 @@ export default function PhongTrongPage() {
     finally { setLoading(false); }
   }
 
-  /* ── Costs overrides (localStorage).
-     TODO: khi Listing schema có field `costs`, dùng PATCH /api/listings/:id thay thế ── */
+  /* ── Costs overrides (localStorage) ── */
   function getCostsOverrides(): Record<string, Partial<RoomCosts>> {
     try { return JSON.parse(localStorage.getItem("phongtrong_costs") || "{}"); }
     catch { return {}; }
@@ -185,10 +251,17 @@ export default function PhongTrongPage() {
   const isAdmin = user?.role === "admin";
   const GREEN = "#006633";
 
+  const andKw = parseKeywords(andKeywords);
+  const orKw  = parseKeywords(orKeywords);
+  const notKw = parseKeywords(notKeywords);
+
   const filtered = items.filter(r => {
     if (!isAdmin && r.status === "hide") return false;
-    if (filters.size === 0) return true;
-    return filters.has(getAvailInfo(r.availableDate).type as "now" | "soon" | "late");
+    if (filters.size > 0 && !filters.has(getAvailInfo(r.availableDate).type as "now" | "soon" | "late")) return false;
+    if (andKw.length > 0 && !matchesKeywords(r)(andKw)) return false;
+    if (orKw.length  > 0 && !matchesAnyKeyword(r)(orKw)) return false;
+    if (notKw.length > 0 &&  matchesAnyKeyword(r)(notKw)) return false;
+    return true;
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -198,7 +271,7 @@ export default function PhongTrongPage() {
       case "elec":       return (getCosts(a).elec - getCosts(b).elec) * mul;
       case "address":    return a.address.localeCompare(b.address, "vi") * mul;
       case "highlights": return highlightsStr(a).localeCompare(highlightsStr(b), "vi") * mul;
-      default: { // avail
+      default: {
         const ta = a.availableDate ? new Date(a.availableDate).getTime() : 0;
         const tb = b.availableDate ? new Date(b.availableDate).getTime() : 0;
         return (ta - tb) * mul;
@@ -241,6 +314,11 @@ export default function PhongTrongPage() {
     };
   };
 
+  const kwInputStyle: React.CSSProperties = {
+    padding: "4px 10px", borderRadius: 8, fontSize: 11, border: "1px solid #ddd",
+    background: "#fff", outline: "none", minWidth: 140, width: "100%",
+  };
+
   /* ══════════════════════ RENDER ══════════════════════ */
   return (
     <div style={{ minHeight: "100vh", background: "#f8f8f8" }}>
@@ -267,6 +345,18 @@ export default function PhongTrongPage() {
             <Link href="/" style={{ padding: "5px 12px", borderRadius: 22, border: "1px solid rgba(255,255,255,0.3)", color: "#fff", background: "rgba(255,255,255,0.1)", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
               ← Trang chủ
             </Link>
+            <Link href="/dang-tin"
+              className="dang-tin-btn"
+              style={{
+                padding: "5px 13px", borderRadius: 22,
+                border: "1px solid #d4a800",
+                color: "#006633",
+                background: "#FFD966",
+                fontSize: 12, fontWeight: 700, textDecoration: "none",
+                display: "inline-block",
+              }}>
+              Đăng tin
+            </Link>
           </div>
         </div>
       </header>
@@ -291,8 +381,8 @@ export default function PhongTrongPage() {
       {/* ── Main ── */}
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "14px 14px 0" }}>
 
-        {/* Filter bar */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8, alignItems: "center" }}>
+        {/* ── Availability filter bar ── */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6, alignItems: "center" }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "#555", marginRight: 2 }}>Lọc:</span>
           {(["now", "soon", "late"] as const).map(f => (
             <button key={f} onClick={() => toggleFilter(f)} style={filterBtn(filters.has(f), f)}>
@@ -308,10 +398,70 @@ export default function PhongTrongPage() {
           <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{sorted.length} phòng</span>
         </div>
 
-        {/* Table block: title + table + footer */}
+        {/* ── Keyword filter bar ── */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10, alignItems: "center", background: "#fff", borderRadius: 10, padding: "8px 12px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #eee" }}>
+          {/* AND */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e8f5e9", color: "#2e7d32", whiteSpace: "nowrap", flexShrink: 0 }}>
+              AND
+            </span>
+            <input
+              value={andKeywords}
+              onChange={e => setAndKeywords(e.target.value)}
+              placeholder="tất cả từ khóa (phân cách bằng ,)"
+              style={{ ...kwInputStyle, borderColor: andKeywords ? "#81c784" : "#ddd" }}
+            />
+            {andKeywords && (
+              <button onClick={() => setAndKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>
+            )}
+          </div>
+          {/* OR */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e3f2fd", color: "#1565c0", whiteSpace: "nowrap", flexShrink: 0 }}>
+              OR
+            </span>
+            <input
+              value={orKeywords}
+              onChange={e => setOrKeywords(e.target.value)}
+              placeholder="bất kỳ từ khóa (phân cách bằng ,)"
+              style={{ ...kwInputStyle, borderColor: orKeywords ? "#64b5f6" : "#ddd" }}
+            />
+            {orKeywords && (
+              <button onClick={() => setOrKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>
+            )}
+          </div>
+          {/* NOT */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#fce4ec", color: "#c62828", whiteSpace: "nowrap", flexShrink: 0 }}>
+              NOT
+            </span>
+            <input
+              value={notKeywords}
+              onChange={e => setNotKeywords(e.target.value)}
+              placeholder="loại trừ từ khóa (phân cách bằng ,)"
+              style={{ ...kwInputStyle, borderColor: notKeywords ? "#e57373" : "#ddd" }}
+            />
+            {notKeywords && (
+              <button onClick={() => setNotKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>
+            )}
+          </div>
+          {(andKeywords || orKeywords || notKeywords) && (
+            <button
+              onClick={() => { setAndKeywords(""); setOrKeywords(""); setNotKeywords(""); }}
+              style={{ padding: "3px 9px", borderRadius: 14, fontSize: 10, fontWeight: 600, cursor: "pointer", background: "#fee", color: "#c00", border: "1px solid #fcc", whiteSpace: "nowrap", flexShrink: 0 }}>
+              ✕ Xoá từ khóa
+            </button>
+          )}
+          {/* hint */}
+          <div style={{ width: "100%", fontSize: 9, color: "#bbb", marginTop: 1 }}>
+            Tìm trong: tiêu đề · địa chỉ · giá · SĐT · ngày trống · đặc điểm · nội thất · mô tả · chi phí
+          </div>
+        </div>
+
+        {/* Table block */}
         <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 24 }}>
 
-          {/* Tiêu đề (từ DB) + ngày cập nhật */}
+          {/* Tiêu đề + ngày cập nhật */}
           <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid #e8f5e9", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{pageTitle}</div>
             <div style={{ fontSize: 10, color: "#999", fontStyle: "italic", whiteSpace: "nowrap" }}>
@@ -338,7 +488,7 @@ export default function PhongTrongPage() {
                     <th style={thSort}   onClick={() => toggleSort("elec")}>        Điện{sortIcon("elec")}</th>
                     <th style={thNoSort}>Nước</th>
                     <th style={thNoSort}>DV</th>
-                    <th style={thNoSort}>Xe</th>
+                    <th style={thNoSort}>Đậu xe</th>
                     <th style={thSort}   onClick={() => toggleSort("avail")}>       Trạng thái{sortIcon("avail")}</th>
                     {isAdmin && <th style={thNoSort}>Sửa CP</th>}
                   </tr>
@@ -357,6 +507,9 @@ export default function PhongTrongPage() {
                         <td style={tdStyle}>
                           <div style={{ fontWeight: 700, color: "#111", marginBottom: 1, fontSize: 11 }}>{room.title}</div>
                           <div style={{ fontSize: 10, color: "#999" }}>📍 {room.address || "TPHCM"}</div>
+                          {room.contactPhone && (
+                            <div style={{ fontSize: 10, color: "#888" }}>📞 {room.contactPhone}</div>
+                          )}
                           {isAdmin && room.status === "hide" && (
                             <span style={{ fontSize: 9, background: "#fee", color: "#c00", padding: "1px 5px", borderRadius: 8, fontWeight: 600 }}>Ẩn</span>
                           )}
@@ -366,10 +519,13 @@ export default function PhongTrongPage() {
                             {(room.highlights || []).slice(0, 2).map((h, i) => (
                               <span key={i} style={{ fontSize: 9, padding: "1px 5px", borderRadius: 10, background: "#e8f5e9", color: "#2e7d32", fontWeight: 500 }}>{h}</span>
                             ))}
+                            {(room.amenities || []).slice(0, 1).map((a, i) => (
+                              <span key={"a" + i} style={{ fontSize: 9, padding: "1px 5px", borderRadius: 10, background: "#e3f2fd", color: "#1565c0", fontWeight: 500 }}>{a}</span>
+                            ))}
                           </div>
                         </td>
                         <td style={{ ...tdStyle, fontWeight: 700, color: "#111", whiteSpace: "nowrap" }}>
-                          {(room.price / 1000000).toFixed(1)}tr
+                          {(room.price / 1_000_000).toFixed(1)}tr
                         </td>
                         <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{(costs.elec / 1000).toFixed(0)}k/kWh</td>
                         <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{costs.water}</td>
@@ -391,7 +547,7 @@ export default function PhongTrongPage() {
             </div>
           )}
 
-          {/* Footer Banner (từ DB) */}
+          {/* Footer Banner */}
           <div style={{ background: GREEN, color: "#fff", textAlign: "center", padding: "7px 16px", fontSize: 11, fontWeight: 600 }}>
             {footerText}
           </div>
@@ -407,7 +563,10 @@ export default function PhongTrongPage() {
             <div style={{ background: GREEN, borderRadius: "16px 16px 0 0", padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{selected.title}</div>
-                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 3 }}>📍 {selected.address}</div>
+                <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 3 }}>📍 {selected.address}</div>
+                {selected.contactPhone && (
+                  <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 2 }}>📞 {selected.contactPhone}</div>
+                )}
               </div>
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.8)", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
@@ -416,28 +575,49 @@ export default function PhongTrongPage() {
                 ? <img src={selected.coverImage} alt={selected.title} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
                 : <div style={{ width: "100%", height: 100, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
               }
+
+              {/* Highlights */}
               {(selected.highlights || []).length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
                   {selected.highlights!.map((h, i) => (
                     <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "#e8f5e9", color: "#2e7d32", fontWeight: 500 }}>✓ {h}</span>
                   ))}
                 </div>
               )}
+
+              {/* Amenities */}
+              {(selected.amenities || []).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+                  {selected.amenities!.map((a, i) => (
+                    <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "#e3f2fd", color: "#1565c0", fontWeight: 500 }}>🛋 {a}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Description */}
+              {selected.description && (
+                <div style={{ fontSize: 12, color: "#555", background: "#f9f9f9", borderRadius: 8, padding: "8px 10px", marginBottom: 10, lineHeight: 1.6, whiteSpace: "pre-line" }}>
+                  {selected.description}
+                </div>
+              )}
+
               {([
-                { label: "Giá thuê",   value: <span style={{ color: GREEN, fontSize: 15, fontWeight: 700 }}>{selected.price.toLocaleString()} đ/tháng</span> },
-                { label: "Tiền điện", value: `${(getCosts(selected).elec / 1000).toFixed(0)}k đồng/kWh` },
-                { label: "Tiền nước", value: getCosts(selected).water },
-                { label: "Dịch vụ",  value: getCosts(selected).sv },
-                { label: "Giữ xe",   value: getCosts(selected).bike },
+                { label: "Giá thuê",    value: <span style={{ color: GREEN, fontSize: 15, fontWeight: 700 }}>{selected.price.toLocaleString()} đ/tháng</span> },
+                { label: "Tiền điện",  value: `${(getCosts(selected).elec / 1000).toFixed(0)}k đồng/kWh` },
+                { label: "Tiền nước",  value: getCosts(selected).water },
+                { label: "Dịch vụ",   value: getCosts(selected).sv },
+                { label: "Đậu xe",    value: getCosts(selected).bike },
                 { label: "Trạng thái", value: <span style={tagStyle(getAvailInfo(selected.availableDate).type)}>{getAvailInfo(selected.availableDate).label}</span> },
               ]).map(({ label, value }, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f5f5f5" }}>
-                  <span style={{ fontSize: 12, color: "#888" }}>{label}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{value}</span>
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ fontSize: 13, color: "#444", fontWeight: 600 }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{value}</span>
                 </div>
               ))}
+
               <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-                <a href="tel:0902225314" style={{ flex: 1, textAlign: "center", padding: "11px", background: "#E61E4D", color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
+                <a href={`tel:${selected.contactPhone || "0902225314"}`}
+                  style={{ flex: 1, textAlign: "center", padding: "11px", background: "#E61E4D", color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
                   📞 Gọi ngay
                 </a>
                 <Link href={`/listing/${selected._id}`} onClick={() => setSelected(null)}
@@ -465,7 +645,7 @@ export default function PhongTrongPage() {
                 { key: "elec",  label: "Tiền điện (đ/kWh)", type: "number", placeholder: "4000" },
                 { key: "water", label: "Tiền nước",          type: "text",   placeholder: "100k/ng" },
                 { key: "sv",    label: "Dịch vụ",            type: "text",   placeholder: "200k/phòng" },
-                { key: "bike",  label: "Giữ xe",             type: "text",   placeholder: "100k" },
+                { key: "bike",  label: "Đậu xe",             type: "text",   placeholder: "100k" },
               ] as const).map(({ key, label, type, placeholder }) => (
                 <div key={key} style={{ marginBottom: 10 }}>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#555", marginBottom: 3 }}>{label}</label>
@@ -494,7 +674,25 @@ export default function PhongTrongPage() {
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin{to{transform:rotate(360deg)}} *{box-sizing:border-box;}` }} />
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(0deg); }
+          20%       { transform: rotate(-8deg); }
+          40%       { transform: rotate(8deg); }
+          60%       { transform: rotate(-5deg); }
+          80%       { transform: rotate(5deg); }
+        }
+        * { box-sizing: border-box; }
+        .dang-tin-btn {
+          transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+        }
+        .dang-tin-btn:hover {
+          background: #ffd27a !important;
+          box-shadow: 0 2px 8px rgba(180,120,0,0.18);
+          animation: wiggle 0.5s ease;
+        }
+      ` }} />
     </div>
   );
 }
