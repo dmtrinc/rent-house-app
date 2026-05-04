@@ -294,11 +294,16 @@ function MyListingsTable({ items, onAction, onCostsSaved, headerText, defaultHea
         )}
       </div>
 
-      {/* ── Header tiêu đề xanh — nằm giữa search và hàng tiêu đề cột ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 14px", gap: 8, background: `${GREEN}22`, borderBottom: `2px solid ${GREEN}` }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: GREEN, flex: 1, lineHeight: 1.4 }}>
-          {headerText || defaultHeaderPlaceholder}
-        </span>
+      {/* ── Header tiêu đề + ngày cập nhật cùng dòng (#1) ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 14px", gap: 8, background: `${GREEN}18`, borderBottom: `2px solid ${GREEN}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: GREEN, lineHeight: 1.4 }}>
+            {headerText || defaultHeaderPlaceholder}
+          </span>
+          <span style={{ fontSize: 10, color: "#888", whiteSpace: "nowrap", flexShrink: 0 }}>
+            📅 Cập nhật: {new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+          </span>
+        </div>
         <button
           onClick={() => {
             const v = window.prompt("Sửa tiêu đề:", headerText || defaultHeaderPlaceholder);
@@ -361,23 +366,21 @@ function MyListingsTable({ items, onAction, onCostsSaved, headerText, defaultHea
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{fmtMoney(costs.sv)}/P</td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{fmtMoney(costs.bike)}/xe</td>
                     <td style={td}><span style={tagStyle(av.type)}>{av.label}</span></td>
-                    <td style={td}>
-                      {isHidden
-                        ? <span style={{ fontSize: 9, background: "#fee", color: "#c00", padding: "2px 6px", borderRadius: 8, fontWeight: 600 }}>🙈 Ẩn</span>
-                        : <span style={{ fontSize: 9, background: "#e8f5e9", color: "#2e7d32", padding: "2px 6px", borderRadius: 8, fontWeight: 600 }}>👁 Hiện</span>
-                      }
-                    </td>
+                    {/* #2: Ẩn/Hiện clickable — nhấn trực tiếp đổi trạng thái */}
                     <td style={td} onClick={e => e.stopPropagation()}>
-                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                        {/* FIX #4: edit button now navigates to /listing/[id]/edit */}
-                        <button
-                          onClick={() => onAction(item, "edit")}
-                          style={actionBtn("#e8f5e9", "#2e7d32")}
-                          title="Sửa tin">✏️</button>
-                        <button onClick={() => onAction(item, "hide")}   style={actionBtn(isHidden ? "#e8f5e9" : "#fff8e1", isHidden ? "#2e7d32" : "#b08500")}>{isHidden ? "👁" : "🙈"}</button>
-                        <button onClick={() => onAction(item, "delete")} style={actionBtn("#fff0f0", "#c00")}>🗑</button>
-                        <CostsEditor item={item} onSaved={onCostsSaved} />
-                      </div>
+                      <button
+                        onClick={() => onAction(item, "hide")}
+                        title={isHidden ? "Đang ẩn — nhấn để hiện" : "Đang hiện — nhấn để ẩn"}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                        {isHidden
+                          ? <span style={{ fontSize: 9, background: "#fee", color: "#c00", padding: "2px 6px", borderRadius: 8, fontWeight: 600 }}>🙈 Ẩn</span>
+                          : <span style={{ fontSize: 9, background: "#e8f5e9", color: "#2e7d32", padding: "2px 6px", borderRadius: 8, fontWeight: 600 }}>👁 Hiện</span>
+                        }
+                      </button>
+                    </td>
+                    {/* #4: Gom 4 nút → 1 nút "⚙️" dropdown */}
+                    <td style={td} onClick={e => e.stopPropagation()}>
+                      <ActionMenu item={item} onAction={onAction} />
                     </td>
                   </tr>
                 );
@@ -387,71 +390,220 @@ function MyListingsTable({ items, onAction, onCostsSaved, headerText, defaultHea
         </div>
       )}
 
-      {/* FIX #7: Detail modal — text colors changed to black (#111 / #222) for readability */}
+      {/* #3: Detail modal với nút "Sửa nhanh" */}
       {selected && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 400,
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={() => setSelected(null)}>
-          <div style={{ background: "#fff", borderRadius: 16, maxWidth: 460, width: "100%",
-            maxHeight: "88vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ background: GREEN, borderRadius: "16px 16px 0 0", padding: "14px 18px",
-              display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{selected.title}</div>
-                {selected.address && <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 3 }}>📍 {selected.address}</div>}
-              </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ padding: "16px 18px" }}>
-              {selected.coverImage
-                ? <img src={selected.coverImage} alt={selected.title} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
-                : <div style={{ width: "100%", height: 100, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>🏠</div>
-              }
-              {(selected.highlights || []).length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 }}>
-                  {selected.highlights!.map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "#e8f5e9", color: "#2e7d32", fontWeight: 500 }}>✓ {h}</span>
-                  ))}
-                </div>
-              )}
-              {(() => {
-                const c = getCosts(selected);
-                return [
-                  { label: "Giá thuê",   value: <span style={{ color: GREEN, fontWeight: 700, fontSize: 15 }}>{selected.price.toLocaleString("vi-VN")} đ/tháng</span> },
-                  { label: "Tiền điện", value: `${(c.elec / 1000).toFixed(0)}k đ/kWh` },
-                  { label: "Tiền nước", value: `${fmtMoney(c.water)}/người/tháng` },
-                  { label: "Dịch vụ",  value: `${fmtMoney(c.sv)}/phòng/tháng` },
-                  { label: "Giữ xe",   value: `${fmtMoney(c.bike)}/xe/tháng` },
-                  { label: "Liên hệ",  value: selected.contactPhone || "—" },
-                  { label: "Trạng thái", value: <span style={tagStyle(getAvailInfo(selected.availableDate).type)}>{getAvailInfo(selected.availableDate).label}</span> },
-                  { label: "Ngày đăng", value: new Date(selected.createdAt).toLocaleDateString("vi-VN") },
-                ].map(({ label, value }, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f5f5f5" }}>
-                    {/* FIX #7: label color darkened to #555, value color to #111 for portrait phone readability */}
-                    <span style={{ fontSize: 12, color: "#555", fontWeight: 500 }}>{label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#111" }}>{value}</span>
-                  </div>
-                ));
-              })()}
-              <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-                <Link href={`/listing/${selected._id}`}
-                  style={{ flex: 1, textAlign: "center", padding: 11, background: GREEN, color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
-                  Xem chi tiết →
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DetailModal
+          item={selected}
+          onClose={() => setSelected(null)}
+          onAction={onAction}
+          onQuickSaved={(updated) => { onCostsSaved(updated); setSelected(updated); }}
+        />
       )}
     </>
   );
 }
-function actionBtn(bg: string, color: string): React.CSSProperties {
-  return { padding: "3px 7px", borderRadius: 7, border: `1px solid ${color}30`, background: bg, color, fontSize: 12, cursor: "pointer", fontWeight: 600 };
+// ─── ActionMenu — 1 nút ⚙️ dropdown (#4) ─────────────────────────────────────
+function ActionMenu({ item, onAction }: {
+  item: ListingItem;
+  onAction: (item: ListingItem, action: "edit" | "hide" | "delete") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+        style={{ padding: "3px 9px", borderRadius: 7, border: `1px solid #ccc`, background: "#f5f5f5", color: "#333", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+        ⚙️
+      </button>
+      {open && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ position: "absolute", right: 0, top: "110%", zIndex: 300, background: "#fff", borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.15)", minWidth: 170, overflow: "hidden" }}>
+          <button onClick={() => { setOpen(false); onAction(item, "edit"); }}
+            style={menuItem("#111")}>✏️ Chỉnh sửa chi tiết</button>
+          <div style={{ height: 1, background: "#f0f0f0" }} />
+          <button onClick={() => { setOpen(false); onAction(item, "delete"); }}
+            style={menuItem("#c00")}>🗑 Xóa phòng</button>
+        </div>
+      )}
+    </div>
+  );
+}
+function menuItem(color: string): React.CSSProperties {
+  return { display: "block", width: "100%", padding: "10px 14px", background: "none", border: "none", textAlign: "left", fontSize: 13, fontWeight: 600, color, cursor: "pointer" };
 }
 
-// ─── SavedTable ───────────────────────────────────────────────────────────────
+// ─── DetailModal — xem chi tiết + sửa nhanh (#3) ────────────────────────────
+function DetailModal({ item, onClose, onAction, onQuickSaved }: {
+  item: ListingItem;
+  onClose: () => void;
+  onAction: (item: ListingItem, action: "edit" | "hide" | "delete") => void;
+  onQuickSaved: (updated: ListingItem) => void;
+}) {
+  const c0 = getCosts(item);
+  const [editing, setEditing]   = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [price, setPrice]       = useState(item.price);
+  const [elec, setElec]         = useState(c0.elec);
+  const [water, setWater]       = useState(c0.water);
+  const [sv, setSv]             = useState(c0.sv);
+  const [bike, setBike]         = useState(c0.bike);
+  const [availDate, setAvailDate] = useState(item.availableDate || "");
+  const [status, setStatus]     = useState(item.status);
+
+  // Reset khi item đổi
+  useEffect(() => {
+    const c = getCosts(item);
+    setPrice(item.price); setElec(c.elec); setWater(c.water);
+    setSv(c.sv); setBike(c.bike);
+    setAvailDate(item.availableDate || ""); setStatus(item.status);
+    setEditing(false);
+  }, [item._id]);
+
+  async function handleQuickSave() {
+    setSaving(true);
+    const costs = { elec, water, sv, bike };
+    await fetch(`/api/listings/${item._id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price, costs, availableDate: availDate || null, status }),
+    });
+    setSaving(false);
+    const updated: ListingItem = { ...item, price, costs, availableDate: availDate || undefined, status };
+    onQuickSaved(updated);
+    setEditing(false);
+  }
+
+  const av = getAvailInfo(item.availableDate);
+  const isHidden = status === "hide";
+
+  const inputSm: React.CSSProperties = {
+    width: "100%", padding: "7px 10px", border: "1px solid #e0e0e0", borderRadius: 8,
+    fontSize: 13, fontFamily: "inherit", boxSizing: "border-box",
+  };
+  const row = (label: string, view: React.ReactNode, edit: React.ReactNode) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f5f5f5", gap: 8 }}>
+      <span style={{ fontSize: 12, color: "#555", fontWeight: 500, flexShrink: 0, minWidth: 80 }}>{label}</span>
+      <div style={{ flex: 1 }}>{editing ? edit : <span style={{ fontSize: 12, fontWeight: 700, color: "#111" }}>{view}</span>}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 400,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      onClick={onClose}>
+      <div style={{ background: "#fff", borderRadius: 16, maxWidth: 460, width: "100%",
+        maxHeight: "92vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ background: GREEN, borderRadius: "16px 16px 0 0", padding: "14px 18px",
+          display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{item.title}</div>
+            {item.address && <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 3 }}>📍 {item.address}</div>}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+
+        <div style={{ padding: "16px 18px" }}>
+          {/* Cover image */}
+          {item.coverImage
+            ? <img src={item.coverImage} alt={item.title} style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />
+            : <div style={{ width: "100%", height: 80, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
+          }
+
+          {/* Highlights */}
+          {(item.highlights || []).length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
+              {item.highlights!.map((h, i) => (
+                <span key={i} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "#e8f5e9", color: "#2e7d32", fontWeight: 500 }}>✓ {h}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Fields */}
+          {row("Giá thuê",
+            <span style={{ color: GREEN, fontWeight: 700, fontSize: 14 }}>{item.price.toLocaleString("vi-VN")} đ/th</span>,
+            <input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} style={inputSm} />
+          )}
+          {row("Điện (đ/kWh)",
+            `${(c0.elec / 1000).toFixed(0)}k`,
+            <input type="number" value={elec} onChange={e => setElec(Number(e.target.value))} style={inputSm} />
+          )}
+          {row("Nước (đ/ng/th)",
+            fmtMoney(c0.water),
+            <input type="number" value={water} onChange={e => setWater(Number(e.target.value))} style={inputSm} />
+          )}
+          {row("Dịch vụ (đ/P)",
+            fmtMoney(c0.sv),
+            <input type="number" value={sv} onChange={e => setSv(Number(e.target.value))} style={inputSm} />
+          )}
+          {row("Giữ xe (đ/xe)",
+            fmtMoney(c0.bike),
+            <input type="number" value={bike} onChange={e => setBike(Number(e.target.value))} style={inputSm} />
+          )}
+          {row("Ngày trống",
+            <span style={tagStyle(av.type)}>{av.label}</span>,
+            <input type="date" value={availDate} onChange={e => setAvailDate(e.target.value)} style={inputSm} />
+          )}
+          {row("Ẩn / Hiện",
+            isHidden
+              ? <span style={{ fontSize: 11, background: "#fee", color: "#c00", padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>🙈 Đang ẩn</span>
+              : <span style={{ fontSize: 11, background: "#e8f5e9", color: "#2e7d32", padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>👁 Đang hiện</span>,
+            <div style={{ display: "flex", gap: 8 }}>
+              {["active", "hide"].map(s => (
+                <button key={s} onClick={() => setStatus(s)}
+                  style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: `1px solid ${status === s ? (s === "hide" ? "#c00" : GREEN) : "#ddd"}`,
+                    background: status === s ? (s === "hide" ? "#fee" : "#e8f5e9") : "#f9f9f9",
+                    color: status === s ? (s === "hide" ? "#c00" : GREEN) : "#888",
+                    fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  {s === "hide" ? "🙈 Ẩn" : "👁 Hiện"}
+                </button>
+              ))}
+            </div>
+          )}
+          {row("Ngày đăng", new Date(item.createdAt).toLocaleDateString("vi-VN"), <span style={{ fontSize: 12, color: "#999" }}>{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span>)}
+
+          {/* Action buttons */}
+          <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {editing ? (
+              <>
+                <button onClick={() => setEditing(false)}
+                  style={{ flex: 1, padding: 10, border: "1px solid #ddd", borderRadius: 10, background: "#f5f5f5", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  Huỷ
+                </button>
+                <button onClick={handleQuickSave} disabled={saving}
+                  style={{ flex: 2, padding: 10, border: "none", borderRadius: 10, background: saving ? "#ccc" : GREEN, color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+                  {saving ? "⏳ Đang lưu..." : "💾 Lưu nhanh"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => setEditing(true)}
+                  style={{ flex: 1, padding: 10, border: `1px solid ${GREEN}`, borderRadius: 10, background: "#e8f5e9", color: GREEN, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  ✏️ Sửa nhanh
+                </button>
+                <Link href={`/listing/${item._id}`}
+                  style={{ flex: 1, textAlign: "center", padding: 10, background: GREEN, color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+                  Xem chi tiết →
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MyListingsTable ──────────────────────────────────────────────────────────
 function SavedTable({ items, savedIds, onToggleSave }: {
   items: ListingItem[]; savedIds: Set<string>;
   onToggleSave: (id: string, action: "save" | "unsave") => void;
@@ -753,16 +905,16 @@ export default function UserPage() {
         {/* TAB: TIN ĐĂNG */}
         {tab === "listings" && (
           <div>
-            {/* Stats row */}
-            <div style={{ display: "flex", gap: 10, padding: "14px 16px" }}>
+            {/* Stats row — compact (#5) */}
+            <div style={{ display: "flex", gap: 8, padding: "10px 16px" }}>
               {[
-                { label: "Tổng",      value: myListings.length, color: "#333" },
-                { label: "Đang hiện", value: activeCount,       color: "#2e7d32" },
-                { label: "Đang ẩn",  value: hiddenCount,        color: "#c00" },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ flex: 1, background: "#fff", borderRadius: 12, padding: "12px 8px", textAlign: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
-                  <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{label}</div>
+                { label: "Tổng",      value: myListings.length, color: "#333",    bg: "#f5f5f5" },
+                { label: "Đang hiện", value: activeCount,       color: "#2e7d32", bg: "#e8f5e9" },
+                { label: "Đang ẩn",  value: hiddenCount,        color: "#c00",    bg: "#fff0f0" },
+              ].map(({ label, value, color, bg }) => (
+                <div key={label} style={{ flex: 1, background: bg, borderRadius: 8, padding: "6px 8px", textAlign: "center" }}>
+                  <span style={{ fontSize: 16, fontWeight: 800, color }}>{value}</span>
+                  <span style={{ fontSize: 10, color: "#888", marginLeft: 4 }}>{label}</span>
                 </div>
               ))}
             </div>
