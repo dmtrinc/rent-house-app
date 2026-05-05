@@ -18,7 +18,7 @@ interface Listing {
   description?: string;
   coverImage?: string;
   images?: string[];
-  status?: string;
+  status?: string;           // "active" | "hide"
   category?: string;
   amenities?: string[];
   contactPhone?: string;
@@ -29,8 +29,18 @@ interface Listing {
   autoHideDays?: number | null;
   autoDeleteDays?: number | null;
   costs?: Partial<RoomCosts>;
-  // populated từ userId (API join hoặc tự thêm client-side)
-  ownerUsername?: string;
+  ownerUsername?: string;    // populated từ userId
+}
+
+/* Draft khi admin/mod đang chỉnh sửa 1 tin */
+interface EditDraft {
+  room: Listing;
+  price: number;
+  availableDate: string;     // "YYYY-MM-DD" hoặc ""
+  status: "active" | "hide";
+  costs: RoomCosts;
+  saving: boolean;
+  saveMsg: string;
 }
 
 interface CurrentUser {
@@ -83,16 +93,19 @@ function highlightsStr(listing: Listing): string {
   return (listing.highlights || []).join(", ");
 }
 
+/** ISO date string → "YYYY-MM-DD" cho <input type="date"> */
+function toDateInput(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
 /* ── Keyword filter helpers ── */
 function parseKeywords(raw: string): string[] {
   return raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
 }
 
-/**
- * Build full-text haystack từ toàn bộ nội dung tin đăng:
- * tiêu đề, địa chỉ, giá, SĐT, ngày trống, đặc điểm,
- * nội thất/tiện nghi, mô tả, chi phí, tên người đăng (ownerUsername)
- */
 function buildHaystack(listing: Listing): string {
   const costs = listing.costs;
   return [
@@ -109,26 +122,15 @@ function buildHaystack(listing: Listing): string {
     listing.description ?? "",
     listing.category    ?? "",
     listing.ownerUsername ?? "",
-    costs?.elec != null
-      ? `${costs.elec} ${(Number(costs.elec) / 1000).toFixed(0)}k`
-      : "",
+    costs?.elec != null ? `${costs.elec} ${(Number(costs.elec) / 1000).toFixed(0)}k` : "",
     costs?.water ?? "",
     costs?.sv    ?? "",
     costs?.bike  ?? "",
-  ]
-    .join(" ")
-    .toLowerCase();
+  ].join(" ").toLowerCase();
 }
 
-function matchesKeywords(listing: Listing): (keywords: string[]) => boolean {
-  const haystack = buildHaystack(listing);
-  return (keywords) => keywords.every(k => haystack.includes(k));
-}
-
-function matchesAnyKeyword(listing: Listing): (keywords: string[]) => boolean {
-  const haystack = buildHaystack(listing);
-  return (keywords) => keywords.some(k => haystack.includes(k));
-}
+function matchesKeywords(listing: Listing)    { const h = buildHaystack(listing); return (kw: string[]) => kw.every(k => h.includes(k));  }
+function matchesAnyKeyword(listing: Listing)  { const h = buildHaystack(listing); return (kw: string[]) => kw.some(k  => h.includes(k));  }
 
 /* ════════════════════════════════════════════════════════════════ */
 export default function PhongTrongPage() {
@@ -136,8 +138,11 @@ export default function PhongTrongPage() {
   const [loading, setLoading] = useState(true);
   const [user,    setUser]    = useState<CurrentUser | null>(null);
 
-  // Filter
+  // Availability filter
   const [filters, setFilters] = useState<Set<"now" | "soon" | "late">>(new Set());
+
+  // Status filter cho admin/mod: "active" | "hide" | "all" — mặc định "active"
+  const [statusFilter, setStatusFilter] = useState<"active" | "hide" | "all">("active");
 
   // Keyword filters
   const [andKeywords, setAndKeywords] = useState("");
@@ -148,7 +153,7 @@ export default function PhongTrongPage() {
   const [sortCol, setSortCol] = useState<"avail" | "price" | "address" | "elec" | "highlights">("avail");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Config
+  // Config bar
   const [pageTitle,  setPageTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
   const [footerText, setFooterText] = useState(DEFAULT_PHONGTRONG_FOOTER);
   const [editTitle,  setEditTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
@@ -157,9 +162,14 @@ export default function PhongTrongPage() {
   const [saving,     setSaving]     = useState(false);
   const [saveMsg,    setSaveMsg]    = useState("");
 
-  // Modals
-  const [selected,  setSelected]  = useState<Listing | null>(null);
-  const [editCosts, setEditCosts] = useState<{ room: Listing; costs: RoomCosts } | null>(null);
+  // Chế độ chỉnh sửa (admin/mod bật thì click vào row mở EditModal thay vì ViewModal)
+  const [editMode, setEditMode] = useState(false);
+
+  // View modal (xem chi tiết)
+  const [selected, setSelected] = useState<Listing | null>(null);
+
+  // Edit modal (admin/mod chỉnh sửa tin)
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
 
   /* ── Init ── */
   useEffect(() => {
@@ -168,7 +178,7 @@ export default function PhongTrongPage() {
     fetchListings();
   }, []);
 
-  /* ── Config: GET from DB ── */
+  /* ── Config: GET ── */
   async function fetchConfig() {
     try {
       const res = await fetch("/api/admin/config", { cache: "no-store" });
@@ -181,7 +191,7 @@ export default function PhongTrongPage() {
     } catch {}
   }
 
-  /* ── Config: POST to DB (admin + mod) ── */
+  /* ── Config: POST ── */
   async function saveConfig() {
     setSaving(true); setSaveMsg("");
     try {
@@ -191,16 +201,12 @@ export default function PhongTrongPage() {
         body: JSON.stringify({ phongtrongTitle: editTitle, phongtrongFooter: editFooter }),
       });
       if (res.ok) {
-        setPageTitle(editTitle);
-        setFooterText(editFooter);
+        setPageTitle(editTitle); setFooterText(editFooter);
         setSaveMsg("✅ Đã lưu");
         setTimeout(() => { setSaveMsg(""); setAdminOpen(false); }, 1500);
-      } else {
-        setSaveMsg("❌ Lỗi lưu");
-      }
-    } catch {
-      setSaveMsg("❌ Lỗi kết nối");
-    } finally { setSaving(false); }
+      } else { setSaveMsg("❌ Lỗi lưu"); }
+    } catch { setSaveMsg("❌ Lỗi kết nối"); }
+    finally { setSaving(false); }
   }
 
   /* ── Listings ── */
@@ -211,11 +217,8 @@ export default function PhongTrongPage() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          const overrides = getCostsOverrides();
-          setItems(data.map((item: Listing) => ({
-            ...item,
-            costs: overrides[item._id] ?? item.costs,
-          })));
+          const ov = getCostsOverrides();
+          setItems(data.map((item: Listing) => ({ ...item, costs: ov[item._id] ?? item.costs })));
         }
       }
     } catch {}
@@ -231,19 +234,72 @@ export default function PhongTrongPage() {
     const ov = getCostsOverrides();
     ov[roomId] = costs;
     localStorage.setItem("phongtrong_costs", JSON.stringify(ov));
-    setItems(prev => prev.map(i => i._id === roomId ? { ...i, costs } : i));
   }
 
-  /* ── Filter ── */
-  function toggleFilter(f: "now" | "soon" | "late") {
-    setFilters(prev => {
-      const n = new Set(prev);
-      n.has(f) ? n.delete(f) : n.add(f);
-      return n;
+  /* ── Mở EditDraft khi click row trong edit mode ── */
+  function openEditDraft(room: Listing) {
+    setEditDraft({
+      room,
+      price: room.price,
+      availableDate: toDateInput(room.availableDate),
+      status: (room.status === "hide" ? "hide" : "active") as "active" | "hide",
+      costs: getCosts(room),
+      saving: false,
+      saveMsg: "",
     });
   }
 
-  /* ── Sort ── */
+  /* ── Lưu EditDraft ── */
+  async function saveEditDraft() {
+    if (!editDraft) return;
+    setEditDraft(p => p ? { ...p, saving: true, saveMsg: "" } : null);
+
+    const { room, price, availableDate, status, costs } = editDraft;
+
+    // 1. Lưu costs vào localStorage
+    saveCostsOverride(room._id, costs);
+
+    // 2. PATCH lên API (price, availableDate, status)
+    try {
+      const body: Record<string, unknown> = {
+        price,
+        status,
+        availableDate: availableDate ? new Date(availableDate).toISOString() : null,
+      };
+      const res = await fetch(`/api/listings/${room._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        // Cập nhật local state
+        setItems(prev => prev.map(i =>
+          i._id === room._id
+            ? { ...i, price, availableDate: availableDate || null, status, costs }
+            : i
+        ));
+        setEditDraft(p => p ? { ...p, saving: false, saveMsg: "✅ Đã lưu" } : null);
+        setTimeout(() => setEditDraft(null), 1200);
+      } else {
+        // Dù API lỗi vẫn lưu costs local + cập nhật state
+        setItems(prev => prev.map(i =>
+          i._id === room._id ? { ...i, costs } : i
+        ));
+        setEditDraft(p => p ? { ...p, saving: false, saveMsg: "⚠️ Lưu CP thành công, API lỗi" } : null);
+      }
+    } catch {
+      setItems(prev => prev.map(i =>
+        i._id === room._id ? { ...i, costs } : i
+      ));
+      setEditDraft(p => p ? { ...p, saving: false, saveMsg: "⚠️ Lưu CP thành công, mất kết nối" } : null);
+    }
+  }
+
+  /* ── Filter / Sort ── */
+  function toggleFilter(f: "now" | "soon" | "late") {
+    setFilters(prev => { const n = new Set(prev); n.has(f) ? n.delete(f) : n.add(f); return n; });
+  }
   function toggleSort(col: typeof sortCol) {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortCol(col); setSortDir("asc"); }
@@ -251,19 +307,26 @@ export default function PhongTrongPage() {
 
   const isAdmin = user?.role === "admin";
   const isMod   = user?.role === "mod";
-  const canEdit = isAdmin || isMod;   // cả admin và mod được sửa header/footer/CP
-
-  const GREEN = "#006633";
+  const canEdit = isAdmin || isMod;
+  const GREEN   = "#006633";
 
   const andKw = parseKeywords(andKeywords);
   const orKw  = parseKeywords(orKeywords);
   const notKw = parseKeywords(notKeywords);
 
   const filtered = items.filter(r => {
-    if (!canEdit && r.status === "hide") return false;
+    // Lọc status
+    if (canEdit) {
+      if (statusFilter === "active" && r.status === "hide") return false;
+      if (statusFilter === "hide"   && r.status !== "hide") return false;
+    } else {
+      if (r.status === "hide") return false;
+    }
+    // Lọc ngày trống
     if (filters.size > 0 && !filters.has(getAvailInfo(r.availableDate).type as "now" | "soon" | "late")) return false;
-    if (andKw.length > 0 && !matchesKeywords(r)(andKw)) return false;
-    if (orKw.length  > 0 && !matchesAnyKeyword(r)(orKw)) return false;
+    // Keyword
+    if (andKw.length > 0 && !matchesKeywords(r)(andKw))   return false;
+    if (orKw.length  > 0 && !matchesAnyKeyword(r)(orKw))  return false;
     if (notKw.length > 0 &&  matchesAnyKeyword(r)(notKw)) return false;
     return true;
   });
@@ -298,7 +361,7 @@ export default function PhongTrongPage() {
     padding: "6px 8px", textAlign: "left", color: "#fff", fontSize: "11px",
     fontWeight: 600, whiteSpace: "nowrap", background: GREEN,
   };
-  const thSort:   React.CSSProperties = { ...thBase, cursor: "pointer",  userSelect: "none" };
+  const thSort:   React.CSSProperties = { ...thBase, cursor: "pointer", userSelect: "none" };
   const thNoSort: React.CSSProperties = { ...thBase, cursor: "default" };
   const tdStyle:  React.CSSProperties = {
     padding: "4px 8px", verticalAlign: "middle", fontSize: "11px", color: "#333", lineHeight: "1.3",
@@ -318,9 +381,27 @@ export default function PhongTrongPage() {
     };
   };
 
+  const statusBtn = (val: "active" | "hide" | "all"): React.CSSProperties => ({
+    padding: "4px 11px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer",
+    background: statusFilter === val
+      ? (val === "hide" ? "#c00" : val === "active" ? GREEN : "#555")
+      : (val === "hide" ? "#fee" : val === "active" ? "#e8f5e9" : "#f0f0f0"),
+    color: statusFilter === val ? "#fff"
+      : (val === "hide" ? "#c00" : val === "active" ? GREEN : "#555"),
+    border: `1px solid ${statusFilter === val
+      ? (val === "hide" ? "#c00" : val === "active" ? GREEN : "#555")
+      : "transparent"}`,
+    transition: "all .15s",
+  });
+
   const kwInputStyle: React.CSSProperties = {
     padding: "4px 10px", borderRadius: 8, fontSize: 11, border: "1px solid #ddd",
     background: "#fff", outline: "none", minWidth: 140, width: "100%",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "6px 10px", borderRadius: 8,
+    border: "1px solid #ddd", fontSize: 12, boxSizing: "border-box" as const,
   };
 
   /* ══════════════════════ RENDER ══════════════════════ */
@@ -341,24 +422,30 @@ export default function PhongTrongPage() {
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {canEdit && (
-              <button
-                onClick={() => setAdminOpen(v => !v)}
-                className="header-btn header-btn--yellow"
-              >
-                ⚙️ {isAdmin ? "Admin" : "Mod"}
-              </button>
+              <>
+                {/* Nút bật/tắt edit mode */}
+                <button
+                  onClick={() => setEditMode(v => !v)}
+                  className={editMode ? "header-btn header-btn--edit-on" : "header-btn header-btn--edit-off"}
+                >
+                  {editMode ? "✏️ Đang sửa" : "✏️ Chỉnh sửa"}
+                </button>
+                {/* Nút Admin/Mod config */}
+                <button
+                  onClick={() => setAdminOpen(v => !v)}
+                  className="header-btn header-btn--yellow"
+                >
+                  ⚙️ {isAdmin ? "Admin" : "Mod"}
+                </button>
+              </>
             )}
-            <Link href="/" className="header-btn header-btn--ghost">
-              ← Trang chủ
-            </Link>
-            <Link href="/dang-tin" className="dang-tin-btn">
-              Đăng tin
-            </Link>
+            <Link href="/" className="header-btn header-btn--ghost">← Trang chủ</Link>
+            <Link href="/dang-tin" className="dang-tin-btn">Đăng tin</Link>
           </div>
         </div>
       </header>
 
-      {/* ── Admin / Mod Config Bar ── */}
+      {/* ── Admin/Mod Config Bar ── */}
       {canEdit && adminOpen && (
         <div style={{ background: "#fff8e1", borderBottom: "2px solid #ffe082", padding: "10px 20px", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#b08500", whiteSpace: "nowrap" }}>✏️ Tiêu đề:</span>
@@ -375,12 +462,21 @@ export default function PhongTrongPage() {
         </div>
       )}
 
+      {/* ── Thanh báo edit mode ── */}
+      {canEdit && editMode && (
+        <div style={{ background: "#fff3cd", borderBottom: "2px solid #ffc107", padding: "6px 20px", fontSize: 12, fontWeight: 600, color: "#856404", textAlign: "center" }}>
+          ✏️ Chế độ chỉnh sửa đang bật — Nhấn vào dòng tin để chỉnh sửa nội dung
+        </div>
+      )}
+
       {/* ── Main ── */}
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "14px 14px 0" }}>
 
-        {/* ── Availability filter bar ── */}
+        {/* ── Filter bar ── */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6, alignItems: "center" }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "#555", marginRight: 2 }}>Lọc:</span>
+
+          {/* Availability */}
           {(["now", "soon", "late"] as const).map(f => (
             <button key={f} onClick={() => toggleFilter(f)} style={filterBtn(filters.has(f), f)}>
               ✓ {f === "now" ? "Trống sẵn" : f === "soon" ? "Dưới 1 tháng" : "Trên 1 tháng"}
@@ -392,64 +488,58 @@ export default function PhongTrongPage() {
               ✕ Xoá lọc
             </button>
           )}
+
+          {/* Status filter — chỉ cho admin/mod */}
+          {canEdit && (
+            <>
+              <span style={{ fontSize: 11, color: "#bbb", margin: "0 2px" }}>|</span>
+              <button onClick={() => setStatusFilter("active")} style={statusBtn("active")}>✓ Đang hiện</button>
+              <button onClick={() => setStatusFilter("hide")}   style={statusBtn("hide")}> Đang ẩn</button>
+              <button onClick={() => setStatusFilter("all")}    style={statusBtn("all")}>Tất cả</button>
+            </>
+          )}
+
           <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{sorted.length} phòng</span>
         </div>
 
-        {/* ── Keyword filter bar (AND / OR / NOT) ── */}
+        {/* ── Keyword filter bar ── */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10, alignItems: "center", background: "#fff", borderRadius: 10, padding: "8px 12px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #eee" }}>
           {/* AND */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
             <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e8f5e9", color: "#2e7d32", whiteSpace: "nowrap", flexShrink: 0 }}>AND</span>
-            <input
-              value={andKeywords}
-              onChange={e => setAndKeywords(e.target.value)}
+            <input value={andKeywords} onChange={e => setAndKeywords(e.target.value)}
               placeholder="tất cả từ khóa (phân cách bằng ,)"
-              style={{ ...kwInputStyle, borderColor: andKeywords ? "#81c784" : "#ddd" }}
-            />
-            {andKeywords && (
-              <button onClick={() => setAndKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>
-            )}
+              style={{ ...kwInputStyle, borderColor: andKeywords ? "#81c784" : "#ddd" }} />
+            {andKeywords && <button onClick={() => setAndKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>}
           </div>
           {/* OR */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
             <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e3f2fd", color: "#1565c0", whiteSpace: "nowrap", flexShrink: 0 }}>OR</span>
-            <input
-              value={orKeywords}
-              onChange={e => setOrKeywords(e.target.value)}
+            <input value={orKeywords} onChange={e => setOrKeywords(e.target.value)}
               placeholder="bất kỳ từ khóa (phân cách bằng ,)"
-              style={{ ...kwInputStyle, borderColor: orKeywords ? "#64b5f6" : "#ddd" }}
-            />
-            {orKeywords && (
-              <button onClick={() => setOrKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>
-            )}
+              style={{ ...kwInputStyle, borderColor: orKeywords ? "#64b5f6" : "#ddd" }} />
+            {orKeywords && <button onClick={() => setOrKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>}
           </div>
           {/* NOT */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
             <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#fce4ec", color: "#c62828", whiteSpace: "nowrap", flexShrink: 0 }}>NOT</span>
-            <input
-              value={notKeywords}
-              onChange={e => setNotKeywords(e.target.value)}
+            <input value={notKeywords} onChange={e => setNotKeywords(e.target.value)}
               placeholder="loại trừ từ khóa (phân cách bằng ,)"
-              style={{ ...kwInputStyle, borderColor: notKeywords ? "#e57373" : "#ddd" }}
-            />
-            {notKeywords && (
-              <button onClick={() => setNotKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>
-            )}
+              style={{ ...kwInputStyle, borderColor: notKeywords ? "#e57373" : "#ddd" }} />
+            {notKeywords && <button onClick={() => setNotKeywords("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>}
           </div>
           {(andKeywords || orKeywords || notKeywords) && (
-            <button
-              onClick={() => { setAndKeywords(""); setOrKeywords(""); setNotKeywords(""); }}
+            <button onClick={() => { setAndKeywords(""); setOrKeywords(""); setNotKeywords(""); }}
               style={{ padding: "3px 9px", borderRadius: 14, fontSize: 10, fontWeight: 600, cursor: "pointer", background: "#fee", color: "#c00", border: "1px solid #fcc", whiteSpace: "nowrap", flexShrink: 0 }}>
               ✕ Xoá từ khóa
             </button>
           )}
-          {/* hint ẩn — không hiển thị dòng mô tả các field tìm kiếm */}
         </div>
 
         {/* Table block */}
         <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 24 }}>
 
-          {/* Tiêu đề + ngày cập nhật */}
+          {/* Tiêu đề */}
           <div style={{ padding: "8px 12px 6px", borderBottom: "1px solid #e8f5e9", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: GREEN }}>{pageTitle}</div>
             <div style={{ fontSize: 10, color: "#999", fontStyle: "italic", whiteSpace: "nowrap" }}>
@@ -478,30 +568,34 @@ export default function PhongTrongPage() {
                     <th style={thNoSort}>DV</th>
                     <th style={thNoSort}>Đậu xe</th>
                     <th style={thSort}   onClick={() => toggleSort("avail")}>       Trạng thái{sortIcon("avail")}</th>
-                    {canEdit && <th style={thNoSort}>Sửa CP</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {sorted.map((room, idx) => {
                     const av    = getAvailInfo(room.availableDate);
                     const costs = getCosts(room);
+                    const isHidden = room.status === "hide";
                     return (
                       <tr key={room._id}
-                        style={{ borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#f0faf5")}
-                        onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
-                        onClick={() => setSelected(room)}>
+                        style={{
+                          borderBottom: "1px solid #f0f0f0", cursor: "pointer",
+                          opacity: isHidden ? 0.6 : 1,
+                          background: isHidden ? "#fff8f8" : undefined,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = editMode && canEdit ? "#fffde7" : "#f0faf5")}
+                        onMouseLeave={e => (e.currentTarget.style.background = isHidden ? "#fff8f8" : "#fff")}
+                        onClick={() => {
+                          if (canEdit && editMode) openEditDraft(room);
+                          else setSelected(room);
+                        }}>
                         <td style={{ ...tdStyle, color: "#bbb", fontWeight: 600, fontSize: 10 }}>{idx + 1}</td>
                         <td style={tdStyle}>
-                          <div style={{ fontWeight: 700, color: "#111", marginBottom: 1, fontSize: 11 }}>{room.title}</div>
+                          <div style={{ fontWeight: 700, color: "#111", marginBottom: 1, fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+                            {room.title}
+                            {isHidden && <span style={{ fontSize: 9, background: "#fee", color: "#c00", padding: "1px 5px", borderRadius: 8, fontWeight: 600, flexShrink: 0 }}>Ẩn</span>}
+                          </div>
                           <div style={{ fontSize: 10, color: "#999" }}>📍 {room.address || "TPHCM"}</div>
-                          {/* SĐT ẩn khỏi danh sách — chỉ hiện trong modal chi tiết */}
-                          {canEdit && room.status === "hide" && (
-                            <span style={{ fontSize: 9, background: "#fee", color: "#c00", padding: "1px 5px", borderRadius: 8, fontWeight: 600 }}>Ẩn</span>
-                          )}
-                          {room.ownerUsername && (
-                            <div style={{ fontSize: 9, color: "#bbb", marginTop: 1 }}>👤 {room.ownerUsername}</div>
-                          )}
+                          {room.ownerUsername && <div style={{ fontSize: 9, color: "#bbb", marginTop: 1 }}>👤 {room.ownerUsername}</div>}
                         </td>
                         <td style={tdStyle}>
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
@@ -521,13 +615,6 @@ export default function PhongTrongPage() {
                         <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{costs.sv}</td>
                         <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{costs.bike}</td>
                         <td style={tdStyle}><span style={tagStyle(av.type)}>{av.label}</span></td>
-                        {canEdit && (
-                          <td style={tdStyle} onClick={e => { e.stopPropagation(); setEditCosts({ room, costs: { ...costs } }); }}>
-                            <button style={{ padding: "2px 8px", borderRadius: 7, border: `1px solid ${GREEN}`, background: "#f0faf5", color: GREEN, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
-                              ✏️ Sửa
-                            </button>
-                          </td>
-                        )}
                       </tr>
                     );
                   })}
@@ -543,7 +630,7 @@ export default function PhongTrongPage() {
         </div>
       </main>
 
-      {/* ── Modal: Chi tiết phòng ── */}
+      {/* ════════════ Modal: Xem chi tiết (user thường) ════════════ */}
       {selected && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={() => setSelected(null)}>
@@ -564,32 +651,21 @@ export default function PhongTrongPage() {
                 ? <img src={selected.coverImage} alt={selected.title} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
                 : <div style={{ width: "100%", height: 100, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
               }
-
-              {/* Highlights */}
               {(selected.highlights || []).length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-                  {selected.highlights!.map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "#e8f5e9", color: "#2e7d32", fontWeight: 500 }}>✓ {h}</span>
-                  ))}
+                  {selected.highlights!.map((h, i) => <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "#e8f5e9", color: "#2e7d32", fontWeight: 500 }}>✓ {h}</span>)}
                 </div>
               )}
-
-              {/* Amenities */}
               {(selected.amenities || []).length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
-                  {selected.amenities!.map((a, i) => (
-                    <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "#e3f2fd", color: "#1565c0", fontWeight: 500 }}>🛋 {a}</span>
-                  ))}
+                  {selected.amenities!.map((a, i) => <span key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "#e3f2fd", color: "#1565c0", fontWeight: 500 }}>🛋 {a}</span>)}
                 </div>
               )}
-
-              {/* Description */}
               {selected.description && (
                 <div style={{ fontSize: 12, color: "#555", background: "#f9f9f9", borderRadius: 8, padding: "8px 10px", marginBottom: 10, lineHeight: 1.6, whiteSpace: "pre-line" }}>
                   {selected.description}
                 </div>
               )}
-
               {([
                 { label: "Giá thuê",    value: <span style={{ color: GREEN, fontSize: 15, fontWeight: 700 }}>{selected.price.toLocaleString()} đ/tháng</span> },
                 { label: "Tiền điện",  value: `${(getCosts(selected).elec / 1000).toFixed(0)}k đồng/kWh` },
@@ -603,7 +679,6 @@ export default function PhongTrongPage() {
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>{value}</span>
                 </div>
               ))}
-
               <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
                 <a href={`tel:${selected.contactPhone || "0902225314"}`}
                   style={{ flex: 1, textAlign: "center", padding: "11px", background: "#E61E4D", color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
@@ -619,44 +694,109 @@ export default function PhongTrongPage() {
         </div>
       )}
 
-      {/* ── Modal: Sửa chi phí (Admin + Mod) ── */}
-      {editCosts && canEdit && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={() => setEditCosts(null)}>
-          <div style={{ background: "#fff", borderRadius: 14, maxWidth: 380, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}
+      {/* ════════════ Modal: Chỉnh sửa tin (Admin + Mod) ════════════ */}
+      {editDraft && canEdit && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setEditDraft(null)}>
+          <div style={{ background: "#fff", borderRadius: 16, maxWidth: 480, width: "100%", maxHeight: "92vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.22)" }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ background: "#fff8e1", borderRadius: "14px 14px 0 0", padding: "12px 18px", borderBottom: "1px solid #ffe082" }}>
-              <div style={{ fontWeight: 700, fontSize: 13, color: "#b08500" }}>✏️ Sửa chi phí phòng</div>
-              <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{editCosts.room.title}</div>
+
+            {/* Header modal */}
+            <div style={{ background: "#fff8e1", borderRadius: "16px 16px 0 0", padding: "13px 18px", borderBottom: "2px solid #ffe082", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#7a5c00" }}>✏️ Chỉnh sửa tin đăng</div>
+                <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>{editDraft.room.title}</div>
+              </div>
+              <button onClick={() => setEditDraft(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#aaa", lineHeight: 1 }}>×</button>
             </div>
-            <div style={{ padding: "14px 18px" }}>
-              {([
-                { key: "elec",  label: "Tiền điện (đ/kWh)", type: "number", placeholder: "4000" },
-                { key: "water", label: "Tiền nước",          type: "text",   placeholder: "100k/ng" },
-                { key: "sv",    label: "Dịch vụ",            type: "text",   placeholder: "200k/phòng" },
-                { key: "bike",  label: "Đậu xe",             type: "text",   placeholder: "100k" },
-              ] as const).map(({ key, label, type, placeholder }) => (
-                <div key={key} style={{ marginBottom: 10 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#555", marginBottom: 3 }}>{label}</label>
-                  <input type={type} value={editCosts.costs[key] as string} placeholder={placeholder}
-                    onChange={e => setEditCosts(prev => prev ? {
-                      ...prev, costs: { ...prev.costs, [key]: type === "number" ? Number(e.target.value) : e.target.value }
-                    } : null)}
-                    style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd", fontSize: 12, boxSizing: "border-box" }} />
+
+            <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* ── Giá thuê ── */}
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#444", marginBottom: 4 }}>💰 Giá thuê (đ/tháng)</label>
+                <input type="number" value={editDraft.price} min={0} step={100000}
+                  onChange={e => setEditDraft(p => p ? { ...p, price: Number(e.target.value) } : null)}
+                  style={inputStyle} />
+                <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>
+                  = {(editDraft.price / 1_000_000).toFixed(2)}tr
                 </div>
-              ))}
-              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                <button onClick={() => setEditCosts(null)}
-                  style={{ flex: 1, padding: "9px", borderRadius: 10, border: "1px solid #ddd", background: "#f5f5f5", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              </div>
+
+              {/* ── Ngày trống phòng ── */}
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#444", marginBottom: 4 }}>📅 Ngày trống phòng</label>
+                <input type="date" value={editDraft.availableDate}
+                  onChange={e => setEditDraft(p => p ? { ...p, availableDate: e.target.value } : null)}
+                  style={inputStyle} />
+                <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>
+                  Để trống = trống sẵn ngay
+                </div>
+              </div>
+
+              {/* ── Trạng thái ẩn/hiện ── */}
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#444", marginBottom: 6 }}>👁 Trạng thái tin đăng</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {(["active", "hide"] as const).map(s => (
+                    <button key={s} onClick={() => setEditDraft(p => p ? { ...p, status: s } : null)}
+                      style={{
+                        flex: 1, padding: "8px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        background: editDraft.status === s
+                          ? (s === "active" ? GREEN : "#c00")
+                          : (s === "active" ? "#e8f5e9" : "#fee"),
+                        color: editDraft.status === s ? "#fff" : (s === "active" ? GREEN : "#c00"),
+                        border: `2px solid ${editDraft.status === s ? (s === "active" ? GREEN : "#c00") : "transparent"}`,
+                        transition: "all .15s",
+                      }}>
+                      {s === "active" ? "✅ Hiện" : "🚫 Ẩn"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Chi phí ── */}
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#444", marginBottom: 6 }}>⚡ Chi phí</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {([
+                    { key: "elec",  label: "Điện (đ/kWh)", type: "number", placeholder: "4000" },
+                    { key: "water", label: "Nước",          type: "text",   placeholder: "100k/ng" },
+                    { key: "sv",    label: "Dịch vụ",       type: "text",   placeholder: "200k/phòng" },
+                    { key: "bike",  label: "Đậu xe",        type: "text",   placeholder: "100k" },
+                  ] as const).map(({ key, label, type, placeholder }) => (
+                    <div key={key}>
+                      <label style={{ display: "block", fontSize: 10, fontWeight: 600, color: "#777", marginBottom: 3 }}>{label}</label>
+                      <input type={type} value={editDraft.costs[key] as string} placeholder={placeholder}
+                        onChange={e => setEditDraft(p => p ? {
+                          ...p, costs: { ...p.costs, [key]: type === "number" ? Number(e.target.value) : e.target.value }
+                        } : null)}
+                        style={{ ...inputStyle }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Nút lưu / hủy ── */}
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button onClick={() => setEditDraft(null)}
+                  style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid #ddd", background: "#f5f5f5", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                   Hủy
                 </button>
-                <button onClick={() => { saveCostsOverride(editCosts.room._id, editCosts.costs); setEditCosts(null); }}
-                  style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", background: GREEN, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                  💾 Lưu
+                <button onClick={saveEditDraft} disabled={editDraft.saving}
+                  style={{ flex: 2, padding: "10px", borderRadius: 10, border: "none", background: editDraft.saving ? "#aaa" : GREEN, color: "#fff", fontSize: 13, fontWeight: 700, cursor: editDraft.saving ? "not-allowed" : "pointer", transition: "background .15s" }}>
+                  {editDraft.saving ? "⏳ Đang lưu..." : "💾 Lưu thay đổi"}
                 </button>
               </div>
-              <div style={{ fontSize: 10, color: "#aaa", marginTop: 8, textAlign: "center" }}>
-                * Chi phí lưu local. Thêm field <code>costs</code> vào Listing schema để lưu DB.
+
+              {editDraft.saveMsg && (
+                <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: editDraft.saveMsg.startsWith("✅") ? "#2e7d32" : "#b08500" }}>
+                  {editDraft.saveMsg}
+                </div>
+              )}
+
+              <div style={{ fontSize: 10, color: "#bbb", textAlign: "center" }}>
+                * Giá, ngày trống, trạng thái lưu qua <code>PATCH /api/listings/{"{id}"}</code>. Chi phí lưu local.
               </div>
             </div>
           </div>
@@ -674,7 +814,6 @@ export default function PhongTrongPage() {
         }
         * { box-sizing: border-box; }
 
-        /* ── Nút header chung ── */
         .header-btn {
           display: inline-block;
           padding: 5px 12px;
@@ -683,16 +822,15 @@ export default function PhongTrongPage() {
           font-weight: 600;
           cursor: pointer;
           text-decoration: none;
+          border: 1px solid transparent;
           transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.12s;
         }
         .header-btn:hover {
           transform: translateY(-1px);
           box-shadow: 0 3px 10px rgba(0,0,0,0.18);
         }
-
-        /* Vàng: Admin / Mod */
         .header-btn--yellow {
-          border: 1px solid rgba(255,255,255,0.3);
+          border-color: rgba(255,255,255,0.3);
           color: #FFD966;
           background: rgba(255,255,255,0.1);
         }
@@ -701,19 +839,36 @@ export default function PhongTrongPage() {
           color: #ffe680;
           box-shadow: 0 3px 10px rgba(255,200,0,0.25);
         }
-
-        /* Ghost: Trang chủ */
         .header-btn--ghost {
-          border: 1px solid rgba(255,255,255,0.3);
+          border-color: rgba(255,255,255,0.3);
           color: #fff;
           background: rgba(255,255,255,0.1);
         }
         .header-btn--ghost:hover {
           background: rgba(255,255,255,0.22);
+        }
+        /* Edit mode OFF */
+        .header-btn--edit-off {
+          border-color: rgba(255,255,255,0.3);
+          color: rgba(255,255,255,0.8);
+          background: rgba(255,255,255,0.08);
+        }
+        .header-btn--edit-off:hover {
+          background: rgba(255,255,255,0.18);
           color: #fff;
         }
+        /* Edit mode ON */
+        .header-btn--edit-on {
+          border-color: #ffc107;
+          color: #333;
+          background: #ffc107;
+          animation: pulse-yellow 1.8s ease-in-out infinite;
+        }
+        @keyframes pulse-yellow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.5); }
+          50%       { box-shadow: 0 0 0 6px rgba(255,193,7,0); }
+        }
 
-        /* Vàng đậm: Đăng tin */
         .dang-tin-btn {
           display: inline-block;
           padding: 5px 13px;
