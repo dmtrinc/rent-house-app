@@ -425,7 +425,7 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
                 padding: "5px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.3)",
                 background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700,
                 transition: "background .15s" }}>
-              🏠 Angiahouse
+               ANGIAHOUSE
             </Link>
             <Link href="/dang-tin"
               style={{ display: "flex", alignItems: "center", gap: 5, textDecoration: "none",
