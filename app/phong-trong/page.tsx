@@ -29,6 +29,14 @@ interface Listing {
   autoHideDays?: number | null;
   autoDeleteDays?: number | null;
   costs?: Partial<RoomCosts>;
+  // populated từ userId (API join hoặc tự thêm client-side)
+  ownerUsername?: string;
+}
+
+interface CurrentUser {
+  _id?: string;
+  username?: string;
+  role?: "user" | "mod" | "admin" | "guest";
 }
 
 interface PageConfig {
@@ -57,9 +65,9 @@ function getAvailInfo(dateStr?: string | null) {
   if (!dateStr) return { label: "Trống sẵn", type: "now" };
   const av   = new Date(dateStr);
   const diff = Math.ceil((av.getTime() - now.getTime()) / 86400000);
-  if (diff < 2)  return { label: "Trống sẵn",                             type: "now"  };
+  if (diff < 2)  return { label: "Trống sẵn",                              type: "now"  };
   if (diff < 30) return { label: "Trống " + av.toLocaleDateString("vi-VN"), type: "soon" };
-  return            { label: "Trống " + av.toLocaleDateString("vi-VN"), type: "late" };
+  return             { label: "Trống " + av.toLocaleDateString("vi-VN"), type: "late" };
 }
 
 function getCosts(listing: Listing): RoomCosts {
@@ -81,33 +89,26 @@ function parseKeywords(raw: string): string[] {
 }
 
 /**
- * Build a full-text haystack from ALL listing fields:
- * title, address, price, contactPhone, availableDate,
- * highlights, amenities, description, costs
+ * Build full-text haystack từ toàn bộ nội dung tin đăng:
+ * tiêu đề, địa chỉ, giá, SĐT, ngày trống, đặc điểm,
+ * nội thất/tiện nghi, mô tả, chi phí, tên người đăng (ownerUsername)
  */
 function buildHaystack(listing: Listing): string {
   const costs = listing.costs;
   return [
     listing.title,
     listing.address,
-    // Giá thuê — số nguyên + dạng "Xtr"
     listing.price != null ? String(listing.price) : "",
     listing.price != null ? (listing.price / 1_000_000).toFixed(1) + "tr" : "",
-    // Số điện thoại liên hệ
     listing.contactPhone ?? "",
-    // Ngày trống
     listing.availableDate
       ? new Date(listing.availableDate).toLocaleDateString("vi-VN")
       : "trống sẵn",
-    // Đặc điểm nổi bật
     ...(listing.highlights ?? []),
-    // Nội thất / tiện nghi
-    ...(listing.amenities ?? []),
-    // Mô tả
+    ...(listing.amenities  ?? []),
     listing.description ?? "",
-    // Danh mục
-    listing.category ?? "",
-    // Chi phí dạng text
+    listing.category    ?? "",
+    listing.ownerUsername ?? "",
     costs?.elec != null
       ? `${costs.elec} ${(Number(costs.elec) / 1000).toFixed(0)}k`
       : "",
@@ -133,9 +134,9 @@ function matchesAnyKeyword(listing: Listing): (keywords: string[]) => boolean {
 export default function PhongTrongPage() {
   const [items,   setItems]   = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user,    setUser]    = useState<any>(null);
+  const [user,    setUser]    = useState<CurrentUser | null>(null);
 
-  // Filter: multi-select; empty = show all
+  // Filter
   const [filters, setFilters] = useState<Set<"now" | "soon" | "late">>(new Set());
 
   // Keyword filters
@@ -147,7 +148,7 @@ export default function PhongTrongPage() {
   const [sortCol, setSortCol] = useState<"avail" | "price" | "address" | "elec" | "highlights">("avail");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Config (title + footer)
+  // Config
   const [pageTitle,  setPageTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
   const [footerText, setFooterText] = useState(DEFAULT_PHONGTRONG_FOOTER);
   const [editTitle,  setEditTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
@@ -180,7 +181,7 @@ export default function PhongTrongPage() {
     } catch {}
   }
 
-  /* ── Config: POST (merge) to DB ── */
+  /* ── Config: POST to DB (admin + mod) ── */
   async function saveConfig() {
     setSaving(true); setSaveMsg("");
     try {
@@ -249,6 +250,9 @@ export default function PhongTrongPage() {
   }
 
   const isAdmin = user?.role === "admin";
+  const isMod   = user?.role === "mod";
+  const canEdit = isAdmin || isMod;   // cả admin và mod được sửa header/footer/CP
+
   const GREEN = "#006633";
 
   const andKw = parseKeywords(andKeywords);
@@ -256,7 +260,7 @@ export default function PhongTrongPage() {
   const notKw = parseKeywords(notKeywords);
 
   const filtered = items.filter(r => {
-    if (!isAdmin && r.status === "hide") return false;
+    if (!canEdit && r.status === "hide") return false;
     if (filters.size > 0 && !filters.has(getAvailInfo(r.availableDate).type as "now" | "soon" | "late")) return false;
     if (andKw.length > 0 && !matchesKeywords(r)(andKw)) return false;
     if (orKw.length  > 0 && !matchesAnyKeyword(r)(orKw)) return false;
@@ -336,33 +340,26 @@ export default function PhongTrongPage() {
             </a>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {isAdmin && (
-              <button onClick={() => setAdminOpen(v => !v)}
-                style={{ padding: "5px 12px", borderRadius: 22, border: "1px solid rgba(255,255,255,0.3)", color: "#FFD966", background: "rgba(255,255,255,0.1)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                ⚙️ Admin
+            {canEdit && (
+              <button
+                onClick={() => setAdminOpen(v => !v)}
+                className="header-btn header-btn--yellow"
+              >
+                ⚙️ {isAdmin ? "Admin" : "Mod"}
               </button>
             )}
-            <Link href="/" style={{ padding: "5px 12px", borderRadius: 22, border: "1px solid rgba(255,255,255,0.3)", color: "#fff", background: "rgba(255,255,255,0.1)", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
+            <Link href="/" className="header-btn header-btn--ghost">
               ← Trang chủ
             </Link>
-            <Link href="/dang-tin"
-              className="dang-tin-btn"
-              style={{
-                padding: "5px 13px", borderRadius: 22,
-                border: "1px solid #d4a800",
-                color: "#006633",
-                background: "#FFD966",
-                fontSize: 12, fontWeight: 700, textDecoration: "none",
-                display: "inline-block",
-              }}>
+            <Link href="/dang-tin" className="dang-tin-btn">
               Đăng tin
             </Link>
           </div>
         </div>
       </header>
 
-      {/* ── Admin Config Bar ── */}
-      {isAdmin && adminOpen && (
+      {/* ── Admin / Mod Config Bar ── */}
+      {canEdit && adminOpen && (
         <div style={{ background: "#fff8e1", borderBottom: "2px solid #ffe082", padding: "10px 20px", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#b08500", whiteSpace: "nowrap" }}>✏️ Tiêu đề:</span>
           <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
@@ -398,13 +395,11 @@ export default function PhongTrongPage() {
           <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{sorted.length} phòng</span>
         </div>
 
-        {/* ── Keyword filter bar ── */}
+        {/* ── Keyword filter bar (AND / OR / NOT) ── */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10, alignItems: "center", background: "#fff", borderRadius: 10, padding: "8px 12px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #eee" }}>
           {/* AND */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e8f5e9", color: "#2e7d32", whiteSpace: "nowrap", flexShrink: 0 }}>
-              AND
-            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e8f5e9", color: "#2e7d32", whiteSpace: "nowrap", flexShrink: 0 }}>AND</span>
             <input
               value={andKeywords}
               onChange={e => setAndKeywords(e.target.value)}
@@ -417,9 +412,7 @@ export default function PhongTrongPage() {
           </div>
           {/* OR */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e3f2fd", color: "#1565c0", whiteSpace: "nowrap", flexShrink: 0 }}>
-              OR
-            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e3f2fd", color: "#1565c0", whiteSpace: "nowrap", flexShrink: 0 }}>OR</span>
             <input
               value={orKeywords}
               onChange={e => setOrKeywords(e.target.value)}
@@ -432,9 +425,7 @@ export default function PhongTrongPage() {
           </div>
           {/* NOT */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 160px", minWidth: 0 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#fce4ec", color: "#c62828", whiteSpace: "nowrap", flexShrink: 0 }}>
-              NOT
-            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#fce4ec", color: "#c62828", whiteSpace: "nowrap", flexShrink: 0 }}>NOT</span>
             <input
               value={notKeywords}
               onChange={e => setNotKeywords(e.target.value)}
@@ -452,10 +443,7 @@ export default function PhongTrongPage() {
               ✕ Xoá từ khóa
             </button>
           )}
-          {/* hint */}
-          <div style={{ width: "100%", fontSize: 9, color: "#bbb", marginTop: 1 }}>
-            Tìm trong: tiêu đề · địa chỉ · giá · SĐT · ngày trống · đặc điểm · nội thất · mô tả · chi phí
-          </div>
+          {/* hint ẩn — không hiển thị dòng mô tả các field tìm kiếm */}
         </div>
 
         {/* Table block */}
@@ -490,7 +478,7 @@ export default function PhongTrongPage() {
                     <th style={thNoSort}>DV</th>
                     <th style={thNoSort}>Đậu xe</th>
                     <th style={thSort}   onClick={() => toggleSort("avail")}>       Trạng thái{sortIcon("avail")}</th>
-                    {isAdmin && <th style={thNoSort}>Sửa CP</th>}
+                    {canEdit && <th style={thNoSort}>Sửa CP</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -507,11 +495,12 @@ export default function PhongTrongPage() {
                         <td style={tdStyle}>
                           <div style={{ fontWeight: 700, color: "#111", marginBottom: 1, fontSize: 11 }}>{room.title}</div>
                           <div style={{ fontSize: 10, color: "#999" }}>📍 {room.address || "TPHCM"}</div>
-                          {room.contactPhone && (
-                            <div style={{ fontSize: 10, color: "#888" }}>📞 {room.contactPhone}</div>
-                          )}
-                          {isAdmin && room.status === "hide" && (
+                          {/* SĐT ẩn khỏi danh sách — chỉ hiện trong modal chi tiết */}
+                          {canEdit && room.status === "hide" && (
                             <span style={{ fontSize: 9, background: "#fee", color: "#c00", padding: "1px 5px", borderRadius: 8, fontWeight: 600 }}>Ẩn</span>
+                          )}
+                          {room.ownerUsername && (
+                            <div style={{ fontSize: 9, color: "#bbb", marginTop: 1 }}>👤 {room.ownerUsername}</div>
                           )}
                         </td>
                         <td style={tdStyle}>
@@ -532,7 +521,7 @@ export default function PhongTrongPage() {
                         <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{costs.sv}</td>
                         <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{costs.bike}</td>
                         <td style={tdStyle}><span style={tagStyle(av.type)}>{av.label}</span></td>
-                        {isAdmin && (
+                        {canEdit && (
                           <td style={tdStyle} onClick={e => { e.stopPropagation(); setEditCosts({ room, costs: { ...costs } }); }}>
                             <button style={{ padding: "2px 8px", borderRadius: 7, border: `1px solid ${GREEN}`, background: "#f0faf5", color: GREEN, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
                               ✏️ Sửa
@@ -630,8 +619,8 @@ export default function PhongTrongPage() {
         </div>
       )}
 
-      {/* ── Modal: Sửa chi phí (Admin) ── */}
-      {editCosts && isAdmin && (
+      {/* ── Modal: Sửa chi phí (Admin + Mod) ── */}
+      {editCosts && canEdit && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={() => setEditCosts(null)}>
           <div style={{ background: "#fff", borderRadius: 14, maxWidth: 380, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}
@@ -684,12 +673,63 @@ export default function PhongTrongPage() {
           80%       { transform: rotate(5deg); }
         }
         * { box-sizing: border-box; }
+
+        /* ── Nút header chung ── */
+        .header-btn {
+          display: inline-block;
+          padding: 5px 12px;
+          border-radius: 22px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          text-decoration: none;
+          transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.12s;
+        }
+        .header-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+        }
+
+        /* Vàng: Admin / Mod */
+        .header-btn--yellow {
+          border: 1px solid rgba(255,255,255,0.3);
+          color: #FFD966;
+          background: rgba(255,255,255,0.1);
+        }
+        .header-btn--yellow:hover {
+          background: rgba(255,215,0,0.22);
+          color: #ffe680;
+          box-shadow: 0 3px 10px rgba(255,200,0,0.25);
+        }
+
+        /* Ghost: Trang chủ */
+        .header-btn--ghost {
+          border: 1px solid rgba(255,255,255,0.3);
+          color: #fff;
+          background: rgba(255,255,255,0.1);
+        }
+        .header-btn--ghost:hover {
+          background: rgba(255,255,255,0.22);
+          color: #fff;
+        }
+
+        /* Vàng đậm: Đăng tin */
         .dang-tin-btn {
+          display: inline-block;
+          padding: 5px 13px;
+          border-radius: 22px;
+          border: 1px solid #d4a800;
+          color: #006633;
+          background: #FFD966;
+          font-size: 12px;
+          font-weight: 700;
+          text-decoration: none;
           transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
         }
         .dang-tin-btn:hover {
-          background: #ffd27a !important;
-          box-shadow: 0 2px 8px rgba(180,120,0,0.18);
+          background: #ffd27a;
+          box-shadow: 0 2px 8px rgba(180,120,0,0.22);
+          transform: translateY(-1px);
           animation: wiggle 0.5s ease;
         }
       ` }} />
