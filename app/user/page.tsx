@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface UserData {
@@ -783,11 +784,12 @@ export default function UserPage() {
   const [footerText, setFooterText]       = useState("");
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState("");
+  const router = useRouter();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res  = await fetch("/api/user/dashboard");
+      const res = await fetch("/api/user/dashboard");
       const data = await res.json();
       if (data.error) { setError(data.error); setLoading(false); return; }
       setUser(data.user);
@@ -796,8 +798,10 @@ export default function UserPage() {
       setViewHistory(data.viewHistory || []);
       setSavedIds(new Set((data.savedListings || []).map((l: ListingItem) => l._id)));
       const u = data.user as UserData;
-      setHeaderText(u.headerText || `Danh sách phòng trống của ${u.username}`);
-      setFooterText(u.footerText || `Liên hệ xem phòng: ${u.phone || u.username} - Hoa hồng 50%/6th 80%/12th`);
+if (u) {
+  setHeaderText(u.headerText || `Danh sách phòng trống của ${u.username}`);
+  setFooterText(u.footerText || `Liên hệ xem phòng: ${u.phone || u.username} - Hoa hồng 50%/6th 80%/12th`);
+}
     } catch (e: any) { setError(e.message); }
     setLoading(false);
   }, []);
@@ -875,14 +879,26 @@ export default function UserPage() {
           </div>
 
           {/* RIGHT: username + avatar (tên trước, avatar sau) */}
+          
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {user?.username}
-            </span>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }}>
-              {user?.username?.[0]?.toUpperCase()}
-            </div>
-          </div>
+  <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+    {user?.username}
+  </span>
+  <div
+    onClick={() => { if (user?.username) router.push(`/user/listing/${user.username}`); }}
+    title="Xem trang công khai"
+    style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.25)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 14, fontWeight: 800, color: "#fff",
+      border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0,
+      cursor: "pointer", transition: "transform .15s, background .15s" }}
+    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.1)"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.4)"; }}
+    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.25)"; }}
+  >
+    {user?.username?.[0]?.toUpperCase()}
+  </div>
+</div>
+
         </div>
 
         {/* FIX #2: Tab bar — maxWidth matches content area for alignment in landscape */}
