@@ -13,30 +13,32 @@ export async function GET(req: Request) {
     });
     const finalUrl = res.url;
 
-    // Pattern 1: @lat,lng trong URL
+    // Pattern 1: @lat,lng
     const coordMatch1 = finalUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (coordMatch1) {
       const lat = coordMatch1[1];
       const lng = coordMatch1[2];
-      const embedUrl = `https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d2000!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1svi!2svn!4v1`;
+      // Dùng dạng search để có marker đỏ
+      const embedUrl = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d500!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zM${lat}!5e0!3m2!1svi!2svn!4v1`;
       return NextResponse.json({ embedUrl, finalUrl });
     }
 
-    // Pattern 2: /search/lat,+lng (nhÆ° káº¿t quáº£ trÃªn)
+    // Pattern 2: /search/lat,+lng
     const coordMatch2 = finalUrl.match(/\/search\/(-?\d+\.\d+),\+?(-?\d+\.\d+)/);
     if (coordMatch2) {
       const lat = coordMatch2[1];
       const lng = coordMatch2[2];
-      const embedUrl = `https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d2000!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1svi!2svn!4v1`;
+      // Dùng q= để có marker đỏ
+      const embedUrl = `https://maps.google.com/maps?q=${lat},${lng}&z=17&output=embed`;
       return NextResponse.json({ embedUrl, finalUrl });
     }
 
     // Pattern 3: query param q=lat,lng
-    const qMatch = finalUrl.match(/[?&]q=(-?\d+\.\d+)[,+]+(-?\d+\.\d+)/);
+    const qMatch = finalUrl.match(/[?&]q=(-?\d+\.\d+)[,+ ]+(-?\d+\.\d+)/);
     if (qMatch) {
       const lat = qMatch[1];
       const lng = qMatch[2];
-      const embedUrl = `https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d2000!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1svi!2svn!4v1`;
+      const embedUrl = `https://maps.google.com/maps?q=${lat},${lng}&z=17&output=embed`;
       return NextResponse.json({ embedUrl, finalUrl });
     }
 
@@ -44,7 +46,7 @@ export async function GET(req: Request) {
     const placeMatch = finalUrl.match(/place\/([^/@?]+)/);
     if (placeMatch) {
       const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, " "));
-      const embedUrl = `https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(placeName)}&zoom=17`;
+      const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&z=17&output=embed`;
       return NextResponse.json({ embedUrl, finalUrl });
     }
 
