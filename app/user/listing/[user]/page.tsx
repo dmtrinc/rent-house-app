@@ -420,12 +420,12 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
 
           {/* LEFT */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Link href="/"
-              style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none",
-                padding: "5px 12px", borderRadius: 20, border: "1px solid rgba(255,255,255,0.3)",
-                background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700,
-                transition: "background .15s" }}>
-               ANGIAHOUSE
+            <Link href="/" style={{ textDecoration: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png"
+                  alt="Angiahouse" style={{ height: 32, width: "auto" }} />
+                <span style={{ fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: "-0.5px" }}>ANGIAHOUSE</span>
+              </div>
             </Link>
             <Link href="/dang-tin"
               style={{ display: "flex", alignItems: "center", gap: 5, textDecoration: "none",
@@ -493,21 +493,9 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
         <div style={{ margin: isEditMode ? "0 16px" : "14px 16px", borderRadius: 12, overflow: "hidden",
           boxShadow: "0 2px 12px rgba(0,0,0,0.09)", transition: "margin .2s" }}>
 
-          {/* Header bar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "9px 14px", gap: 8, background: GREEN,
-            borderRadius: isEditMode ? 0 : "10px 10px 0 0" }}>
-            {isEditMode
-              ? <InlineTextEditor value={headerText} onSave={v => saveText("headerText", v)} />
-              : <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", flex: 1 }}>{headerText}</span>
-            }
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)", whiteSpace: "nowrap", flexShrink: 0 }}>
-              📅 {new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
-            </span>
-          </div>
-
-          {/* Filter bar */}
+          {/* 1. Filter bar */}
           <div style={{ padding: "8px 12px", borderBottom: "1px solid #f0f0f0", background: "#fff",
+            borderRadius: "12px 12px 0 0",
             display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>Lọc:</span>
             {(["now", "soon", "late"] as const).map(f => {
@@ -525,7 +513,7 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
             <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{list.length} tin</span>
           </div>
 
-          {/* Search bars */}
+          {/* 2. Search bars */}
           <div style={{ padding: "8px 12px", borderBottom: "1px solid #f0f0f0", background: "#fff",
             display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ flex: "1 1 140px", position: "relative" }}>
@@ -557,7 +545,31 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
             )}
           </div>
 
-          {/* Table */}
+          {/* 3. Header bar (green) */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "7px 14px", gap: 8, background: `${GREEN}18`, borderBottom: `2px solid ${GREEN}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+              {isEditMode
+                ? <InlineTextEditor value={headerText} onSave={v => saveText("headerText", v)} />
+                : <span style={{ fontSize: 12, fontWeight: 700, color: GREEN, lineHeight: 1.4, flex: 1 }}>{headerText}</span>
+              }
+              <span style={{ fontSize: 10, color: "#888", whiteSpace: "nowrap", flexShrink: 0 }}>
+                📅 {new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+              </span>
+            </div>
+            {isEditMode && (
+              <button onClick={() => {
+                const v = window.prompt("Sửa tiêu đề:", headerText);
+                if (v !== null) saveText("headerText", v);
+              }}
+                style={{ background: `${GREEN}22`, border: `1px solid ${GREEN}55`, borderRadius: 8,
+                  color: GREEN, fontSize: 13, cursor: "pointer", padding: "2px 8px", flexShrink: 0 }}>
+                🖊️
+              </button>
+            )}
+          </div>
+
+          {/* 4. Table */}
           <div style={{ background: "#fff" }}>
             {list.length === 0 ? (
               <div style={{ padding: "50px 20px", textAlign: "center", color: "#aaa", fontSize: 13 }}>
