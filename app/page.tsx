@@ -132,10 +132,11 @@ export default function HomePage() {
   });
 
   // Dashboard href theo role
-  const dashboardHref =
-    user?.role === "admin" ? "/admin" :
-    user?.role === "mod"   ? "/mod"   :
-                             "/user";
+  //const dashboardHref =
+  //  user?.role === "admin" ? "/admin" :
+  //  user?.role === "mod"   ? "/mod"   :
+  //                           "/user";
+    const dashboardHref = "/user";
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f8f8" }}>

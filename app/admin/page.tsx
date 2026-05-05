@@ -28,6 +28,14 @@ export default function AdminDashboard() {
   const [listingAutoHide, setListingAutoHide] = useState<number | "">("");
   const [savingListingConfig, setSavingListingConfig] = useState(false);
 
+  // ─── Transfer ownership ───────────────────────────────────────────────────
+  const [selectedListings, setSelectedListings] = useState<Set<string>>(new Set());
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferTargetUser, setTransferTargetUser] = useState("");
+  const [transferringListingId, setTransferringListingId] = useState<string | null>(null); // single listing quick-transfer
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferSearch, setTransferSearch] = useState("");
+
   // Sort state
   const [sortField, setSortField] = useState<SortField>("updatedAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -87,6 +95,7 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         setListings(prev => prev.filter(l => l._id !== id));
+        setSelectedListings(prev => { const s = new Set(prev); s.delete(id); return s; });
       } else {
         alert("Lỗi xóa tin");
       }
@@ -133,6 +142,84 @@ export default function AdminDashboard() {
     }
   };
 
+  // ─── Transfer ownership handlers ──────────────────────────────────────────
+  const openTransferModal = (listingId?: string) => {
+    setTransferTargetUser("");
+    setTransferSearch("");
+    if (listingId) {
+      setTransferringListingId(listingId);
+    } else {
+      setTransferringListingId(null);
+    }
+    setShowTransferModal(true);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferTargetUser) { alert("Vui lòng chọn người nhận."); return; }
+
+    const ids = transferringListingId
+      ? [transferringListingId]
+      : Array.from(selectedListings);
+
+    if (ids.length === 0) { alert("Không có tin nào được chọn."); return; }
+
+    const targetUser = users.find(u => u._id === transferTargetUser);
+    const confirmMsg = `Chuyển ${ids.length} tin sang tài khoản "${targetUser?.username}"?\nHành động này không thể hoàn tác.`;
+    if (!confirm(confirmMsg)) return;
+
+    setTransferLoading(true);
+    try {
+      const results = await Promise.all(
+        ids.map(id =>
+          fetch(`/api/listings/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: transferTargetUser, _adminOverride: true }),
+          })
+        )
+      );
+
+      const failed = results.filter(r => !r.ok).length;
+      if (failed > 0) {
+        alert(`Có ${failed}/${ids.length} tin chuyển thất bại.`);
+      } else {
+        alert(`Đã chuyển ${ids.length} tin đăng thành công!`);
+      }
+
+      // Update local state: set new userId/owner on transferred listings
+      setListings(prev => prev.map(l =>
+        ids.includes(l._id)
+          ? { ...l, userId: transferTargetUser, ownerUsername: targetUser?.username }
+          : l
+      ));
+      setSelectedListings(new Set());
+      setShowTransferModal(false);
+      setTransferringListingId(null);
+    } catch {
+      alert("Lỗi kết nối khi chuyển sở hữu.");
+    } finally {
+      setTransferLoading(false);
+    }
+  };
+
+  // ─── Selection helpers ────────────────────────────────────────────────────
+  const toggleSelectListing = (id: string) => {
+    setSelectedListings(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedListings.size === sortedListings.length) {
+      setSelectedListings(new Set());
+    } else {
+      setSelectedListings(new Set(sortedListings.map(l => l._id)));
+    }
+  };
+
+  // ─── User form ────────────────────────────────────────────────────────────
   const handleUserSubmit = async () => {
     const payload = {
       userId: editingUser?._id,
@@ -200,7 +287,7 @@ export default function AdminDashboard() {
     return 0;
   });
 
-  // ─── Sort users: mặc định theo role order ─────────────────────────────────
+  // ─── Sort users ───────────────────────────────────────────────────────────
   const sortedUsers = [...users].sort((a, b) => {
     if (userSortField === "role") {
       const orderA = ROLE_ORDER[a.role] ?? 9;
@@ -208,10 +295,8 @@ export default function AdminDashboard() {
       if (orderA !== orderB) return userSortDir === "asc" ? orderA - orderB : orderB - orderA;
       return a.username.localeCompare(b.username);
     }
-
     let valA: any = a[userSortField];
     let valB: any = b[userSortField];
-
     if (userSortField === "lastLogin") {
       valA = valA ? new Date(valA).getTime() : 0;
       valB = valB ? new Date(valB).getTime() : 0;
@@ -222,11 +307,17 @@ export default function AdminDashboard() {
       valA = (valA || "").toString().toLowerCase();
       valB = (valB || "").toString().toLowerCase();
     }
-
     if (valA < valB) return userSortDir === "asc" ? -1 : 1;
     if (valA > valB) return userSortDir === "asc" ? 1 : -1;
     return 0;
   });
+
+  // Filtered users for transfer (exclude guests, filter by search)
+  const transferableUsers = users.filter(u =>
+    !u.isGuestAccount &&
+    (u.username.toLowerCase().includes(transferSearch.toLowerCase()) ||
+      (u.email || "").toLowerCase().includes(transferSearch.toLowerCase()))
+  );
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -241,7 +332,6 @@ export default function AdminDashboard() {
   const sortIcon  = (field: SortField)     => sortField     === field ? (sortDir     === "asc" ? " ↑" : " ↓") : " ↕";
   const uSortIcon = (field: UserSortField) => userSortField === field ? (userSortDir === "asc" ? " ↑" : " ↓") : " ↕";
 
-  // ─── Format last login ────────────────────────────────────────────────────
   const formatLastLogin = (dateStr: string | null | undefined) => {
     if (!dateStr) return null;
     const date = new Date(dateStr);
@@ -250,22 +340,18 @@ export default function AdminDashboard() {
     const diffMins  = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays  = Math.floor(diffHours / 24);
-
     const absolute = date.toLocaleString("vi-VN", {
       day: "2-digit", month: "2-digit", year: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
-
     let relative = "";
     if (diffMins < 1)        relative = "vừa xong";
     else if (diffMins < 60)  relative = `${diffMins} phút trước`;
     else if (diffHours < 24) relative = `${diffHours} giờ trước`;
     else if (diffDays < 30)  relative = `${diffDays} ngày trước`;
-
     return { absolute, relative };
   };
 
-  // ─── Role badge ───────────────────────────────────────────────────────────
   const getRoleBadge = (role: string) => {
     const map: Record<string, { bg: string; color: string; label: string }> = {
       admin: { bg: "#ff980022", color: "#ff9800",  label: "ADMIN" },
@@ -297,6 +383,12 @@ export default function AdminDashboard() {
     boxSizing: "border-box",
   };
 
+  // ─── Transfer modal display info ──────────────────────────────────────────
+  const transferIds = transferringListingId
+    ? [transferringListingId]
+    : Array.from(selectedListings);
+  const transferListingNames = transferIds.map(id => listings.find(l => l._id === id)?.title || id);
+
   return (
     <main style={{ backgroundColor: "#000", minHeight: "100vh", color: "#fff", padding: "20px", fontFamily: "sans-serif" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
@@ -321,10 +413,27 @@ export default function AdminDashboard() {
             )}
 
             {activeTab === "listings" && (
-              <div style={{ display: "flex", gap: "4px", background: "#111", border: "1px solid #333", borderRadius: "8px", padding: "4px" }}>
-                <button onClick={() => setViewMode("list")} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: viewMode === "list" ? "#333" : "transparent", color: viewMode === "list" ? "#fff" : "#666", cursor: "pointer", fontSize: "16px" }} title="Xem dạng list">☰</button>
-                <button onClick={() => setViewMode("grid")} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: viewMode === "grid" ? "#333" : "transparent", color: viewMode === "grid" ? "#fff" : "#666", cursor: "pointer", fontSize: "16px" }} title="Xem dạng grid">⊞</button>
-              </div>
+              <>
+                {/* Bulk transfer button — appears when listings are selected */}
+                {selectedListings.size > 0 && (
+                  <button
+                    onClick={() => openTransferModal()}
+                    style={{
+                      background: "#7c3aed", color: "#fff", border: "none",
+                      padding: "10px 16px", borderRadius: "8px", cursor: "pointer",
+                      fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px",
+                      animation: "pulse 1.5s infinite",
+                    }}
+                  >
+                    🔄 Chuyển chủ ({selectedListings.size})
+                  </button>
+                )}
+
+                <div style={{ display: "flex", gap: "4px", background: "#111", border: "1px solid #333", borderRadius: "8px", padding: "4px" }}>
+                  <button onClick={() => setViewMode("list")} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: viewMode === "list" ? "#333" : "transparent", color: viewMode === "list" ? "#fff" : "#666", cursor: "pointer", fontSize: "16px" }} title="Xem dạng list">☰</button>
+                  <button onClick={() => setViewMode("grid")} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: viewMode === "grid" ? "#333" : "transparent", color: viewMode === "grid" ? "#fff" : "#666", cursor: "pointer", fontSize: "16px" }} title="Xem dạng grid">⊞</button>
+                </div>
+              </>
             )}
 
             <Link href="/" style={{ color: "#888", textDecoration: "none", border: "1px solid #333", padding: "10px 15px", borderRadius: "8px" }}>
@@ -365,29 +474,21 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody>
                     {sortedUsers.map((u, idx) => {
-                      const loginInfo  = formatLastLogin(u.lastLogin);
+                      const loginInfo   = formatLastLogin(u.lastLogin);
                       const isSuspended = !!u.suspended;
-                      const isGuest    = !!u.isGuestAccount;
+                      const isGuest     = !!u.isGuestAccount;
 
                       return (
                         <tr key={u._id} style={{ opacity: isSuspended ? 0.65 : 1 }}>
                           <td style={{ ...td, color: "#555", fontSize: "13px" }}>{idx + 1}</td>
-
-                          {/* Username */}
                           <td style={{ ...td, fontWeight: 500 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               {isGuest && <span style={{ fontSize: "14px" }}>👤</span>}
                               {u.username}
                             </div>
                           </td>
-
-                          {/* Email */}
                           <td style={{ ...td, color: "#aaa", fontSize: "13px" }}>{u.email || "—"}</td>
-
-                          {/* Role */}
                           <td style={td}>{getRoleBadge(u.role)}</td>
-
-                          {/* Password */}
                           <td style={{ ...td, fontSize: "13px" }}>
                             {isGuest ? (
                               <span style={{ color: "#333", fontSize: "12px" }}>—</span>
@@ -404,8 +505,6 @@ export default function AdminDashboard() {
                               <span style={{ color: "#444", fontSize: "12px" }}>— chưa có</span>
                             )}
                           </td>
-
-                          {/* Last login */}
                           <td style={{ ...td, fontSize: "12px" }}>
                             {isGuest ? (
                               <span style={{ color: "#333" }}>—</span>
@@ -418,8 +517,6 @@ export default function AdminDashboard() {
                               <span style={{ color: "#555" }}>—</span>
                             )}
                           </td>
-
-                          {/* Trạng thái — click để toggle */}
                           <td style={td}>
                             {u.role === "admin" ? (
                               <span style={{ color: "#555", fontSize: "12px" }}>—</span>
@@ -427,21 +524,12 @@ export default function AdminDashboard() {
                               <button
                                 onClick={() => handleToggleSuspend(u)}
                                 title={isSuspended ? "Nhấn để khôi phục hoạt động" : "Nhấn để đình chỉ"}
-                                style={{
-                                  fontSize: "12px", padding: "5px 14px", borderRadius: "6px",
-                                  fontWeight: "bold", border: "none", cursor: "pointer",
-                                  background: isSuspended ? "#dc354522" : "#28a74522",
-                                  color: isSuspended ? "#dc3545" : "#28a745",
-                                  whiteSpace: "nowrap",
-                                  transition: "all 0.15s",
-                                }}
+                                style={{ fontSize: "12px", padding: "5px 14px", borderRadius: "6px", fontWeight: "bold", border: "none", cursor: "pointer", background: isSuspended ? "#dc354522" : "#28a74522", color: isSuspended ? "#dc3545" : "#28a745", whiteSpace: "nowrap", transition: "all 0.15s" }}
                               >
                                 {isSuspended ? "🚫 Đình chỉ" : "✅ Hoạt động"}
                               </button>
                             )}
                           </td>
-
-                          {/* Hành động */}
                           <td style={td}>
                             {isGuest ? (
                               <span style={{ color: "#2a2a2a", fontSize: "12px", fontStyle: "italic" }}>Tài khoản hệ thống</span>
@@ -473,9 +561,19 @@ export default function AdminDashboard() {
                 {/* List view */}
                 {viewMode === "list" && (
                   <div style={{ background: "#111", borderRadius: "12px", border: "1px solid #222", overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1000px" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1080px" }}>
                       <thead>
                         <tr>
+                          {/* Select all checkbox */}
+                          <th style={{ ...th, width: "44px", cursor: "default" }}>
+                            <input
+                              type="checkbox"
+                              checked={sortedListings.length > 0 && selectedListings.size === sortedListings.length}
+                              ref={el => { if (el) el.indeterminate = selectedListings.size > 0 && selectedListings.size < sortedListings.length; }}
+                              onChange={toggleSelectAll}
+                              style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#7c3aed" }}
+                            />
+                          </th>
                           <th style={th}>#</th>
                           <th style={th} onClick={() => toggleSort("title")}>Tiêu đề{sortIcon("title")}</th>
                           <th style={th} onClick={() => toggleSort("address")}>Địa chỉ{sortIcon("address")}</th>
@@ -487,51 +585,77 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedListings.map((l, idx) => (
-                          <tr key={l._id} style={{ background: l.status === "hide" ? "#0a0a0a" : "transparent" }}>
-                            <td style={{ ...td, color: "#555", fontSize: "13px" }}>{idx + 1}</td>
-                            <td style={{ ...td, fontWeight: 500, maxWidth: "220px" }}>
-                              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                <Link href={`/listing/${l._id}`} target="_blank" style={{ color: "#fff", textDecoration: "none" }}>{l.title}</Link>
-                              </div>
-                            </td>
-                            <td style={{ ...td, color: "#aaa", fontSize: "13px", maxWidth: "180px" }}>
-                              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.address || "—"}</div>
-                            </td>
-                            <td style={{ ...td, color: "#ff4d4d", fontWeight: 500, whiteSpace: "nowrap" }}>
-                              {l.price?.toLocaleString()} đ
-                            </td>
-                            <td style={td}>
-                              <button
-                                onClick={() => handleToggleStatus(l)}
-                                style={{
-                                  fontSize: "11px", padding: "4px 10px", borderRadius: "4px", fontWeight: "bold", border: "none", cursor: "pointer",
-                                  background: l.status === "active" ? "#28a74522" : "#dc354522",
-                                  color: l.status === "active" ? "#28a745" : "#dc3545",
-                                }}
-                              >
-                                {l.status === "active" ? "HIỆN" : "ẨN"}
-                              </button>
-                            </td>
-                            <td style={{ ...td, color: "#555", fontSize: "12px", whiteSpace: "nowrap" }}>
-                              {new Date(l.updatedAt || l.createdAt).toLocaleDateString("vi-VN")}
-                            </td>
-                            <td style={{ ...td, fontSize: "11px" }}>
-                              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                                {l.autoHideDays   != null && <span style={{ color: "#ff9800", background: "#ff980015", padding: "2px 6px", borderRadius: "4px", whiteSpace: "nowrap" }}>👁️ {l.autoHideDays}ng</span>}
-                                {l.autoDeleteDays != null && <span style={{ color: "#dc3545", background: "#dc354515", padding: "2px 6px", borderRadius: "4px", whiteSpace: "nowrap" }}>🗑️ {l.autoDeleteDays}ng</span>}
-                                {l.autoDeleteDays == null && l.autoHideDays == null && <span style={{ color: "#333" }}>—</span>}
-                              </div>
-                            </td>
-                            <td style={td}>
-                              <div style={{ display: "flex", gap: "6px" }}>
-                                <button onClick={() => router.push(`/edit/${l._id}`)} style={{ color: "#0070f3", background: "none", border: "1px solid #333", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>✏️ Sửa</button>
-                                <button onClick={() => openListingConfig(l)} style={{ color: "#ff9800", background: "none", border: "1px solid #333", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>⏱️ Tự động</button>
-                                <button onClick={() => handleDeleteListing(l._id)} style={{ color: "#dc3545", background: "none", border: "1px solid #333", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>🗑️ Xóa</button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {sortedListings.map((l, idx) => {
+                          const isSelected = selectedListings.has(l._id);
+                          return (
+                            <tr
+                              key={l._id}
+                              style={{
+                                background: isSelected
+                                  ? "#7c3aed11"
+                                  : l.status === "hide" ? "#0a0a0a" : "transparent",
+                                outline: isSelected ? "1px solid #7c3aed44" : "none",
+                              }}
+                            >
+                              <td style={{ ...td, textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelectListing(l._id)}
+                                  style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#7c3aed" }}
+                                />
+                              </td>
+                              <td style={{ ...td, color: "#555", fontSize: "13px" }}>{idx + 1}</td>
+                              <td style={{ ...td, fontWeight: 500, maxWidth: "220px" }}>
+                                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  <Link href={`/listing/${l._id}`} target="_blank" style={{ color: "#fff", textDecoration: "none" }}>{l.title}</Link>
+                                </div>
+                                {/* Show owner if available */}
+                                {l.ownerUsername && (
+                                  <div style={{ fontSize: "11px", color: "#555", marginTop: "2px" }}>👤 {l.ownerUsername}</div>
+                                )}
+                              </td>
+                              <td style={{ ...td, color: "#aaa", fontSize: "13px", maxWidth: "180px" }}>
+                                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.address || "—"}</div>
+                              </td>
+                              <td style={{ ...td, color: "#ff4d4d", fontWeight: 500, whiteSpace: "nowrap" }}>
+                                {l.price?.toLocaleString()} đ
+                              </td>
+                              <td style={td}>
+                                <button
+                                  onClick={() => handleToggleStatus(l)}
+                                  style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "4px", fontWeight: "bold", border: "none", cursor: "pointer", background: l.status === "active" ? "#28a74522" : "#dc354522", color: l.status === "active" ? "#28a745" : "#dc3545" }}
+                                >
+                                  {l.status === "active" ? "HIỆN" : "ẨN"}
+                                </button>
+                              </td>
+                              <td style={{ ...td, color: "#555", fontSize: "12px", whiteSpace: "nowrap" }}>
+                                {new Date(l.updatedAt || l.createdAt).toLocaleDateString("vi-VN")}
+                              </td>
+                              <td style={{ ...td, fontSize: "11px" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                                  {l.autoHideDays   != null && <span style={{ color: "#ff9800", background: "#ff980015", padding: "2px 6px", borderRadius: "4px", whiteSpace: "nowrap" }}>👁️ {l.autoHideDays}ng</span>}
+                                  {l.autoDeleteDays != null && <span style={{ color: "#dc3545", background: "#dc354515", padding: "2px 6px", borderRadius: "4px", whiteSpace: "nowrap" }}>🗑️ {l.autoDeleteDays}ng</span>}
+                                  {l.autoDeleteDays == null && l.autoHideDays == null && <span style={{ color: "#333" }}>—</span>}
+                                </div>
+                              </td>
+                              <td style={td}>
+                                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                  <button onClick={() => router.push(`/edit/${l._id}`)} style={{ color: "#0070f3", background: "none", border: "1px solid #333", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>✏️ Sửa</button>
+                                  <button onClick={() => openListingConfig(l)} style={{ color: "#ff9800", background: "none", border: "1px solid #333", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>⏱️ Tự động</button>
+                                  <button
+                                    onClick={() => openTransferModal(l._id)}
+                                    style={{ color: "#a78bfa", background: "none", border: "1px solid #333", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}
+                                    title="Chuyển sở hữu tin này"
+                                  >
+                                    🔄 Chuyển
+                                  </button>
+                                  <button onClick={() => handleDeleteListing(l._id)} style={{ color: "#dc3545", background: "none", border: "1px solid #333", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" }}>🗑️ Xóa</button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -550,42 +674,170 @@ export default function AdminDashboard() {
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "16px" }}>
-                      {sortedListings.map((l) => (
-                        <div key={l._id} style={{ background: "#111", borderRadius: "12px", border: `1px solid ${l.status === "hide" ? "#333" : "#222"}`, overflow: "hidden", opacity: l.status === "hide" ? 0.6 : 1 }}>
-                          <div style={{ position: "relative", paddingBottom: "65%", background: "#1a1a1a" }}>
-                            {l.coverImage
-                              ? <img src={l.coverImage} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} alt={l.title} />
-                              : <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: "32px" }}>🏘️</div>
-                            }
-                            <div style={{ position: "absolute", top: "8px", left: "8px" }}>
-                              <button onClick={() => handleToggleStatus(l)} style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold", border: "none", cursor: "pointer", background: l.status === "active" ? "#28a745" : "#dc3545", color: "#fff" }}>
-                                {l.status === "active" ? "HIỆN" : "ẨN"}
-                              </button>
+                      {sortedListings.map((l) => {
+                        const isSelected = selectedListings.has(l._id);
+                        return (
+                          <div
+                            key={l._id}
+                            style={{
+                              background: "#111", borderRadius: "12px",
+                              border: isSelected ? "1px solid #7c3aed" : `1px solid ${l.status === "hide" ? "#333" : "#222"}`,
+                              overflow: "hidden",
+                              opacity: l.status === "hide" ? 0.6 : 1,
+                              boxShadow: isSelected ? "0 0 0 2px #7c3aed33" : "none",
+                            }}
+                          >
+                            <div style={{ position: "relative", paddingBottom: "65%", background: "#1a1a1a" }}>
+                              {l.coverImage
+                                ? <img src={l.coverImage} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} alt={l.title} />
+                                : <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: "32px" }}>🏘️</div>
+                              }
+                              {/* Checkbox overlay */}
+                              <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelectListing(l._id)}
+                                  style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#7c3aed" }}
+                                />
+                              </div>
+                              <div style={{ position: "absolute", top: "8px", left: "34px" }}>
+                                <button onClick={() => handleToggleStatus(l)} style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold", border: "none", cursor: "pointer", background: l.status === "active" ? "#28a745" : "#dc3545", color: "#fff" }}>
+                                  {l.status === "active" ? "HIỆN" : "ẨN"}
+                                </button>
+                              </div>
+                              <div style={{ position: "absolute", top: "8px", right: "8px", display: "flex", flexDirection: "column", gap: "3px", alignItems: "flex-end" }}>
+                                {l.autoHideDays   != null && <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#ff980099", color: "#fff" }}>👁️ {l.autoHideDays}ng</span>}
+                                {l.autoDeleteDays != null && <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#dc354599", color: "#fff" }}>🗑️ {l.autoDeleteDays}ng</span>}
+                              </div>
                             </div>
-                            <div style={{ position: "absolute", top: "8px", right: "8px", display: "flex", flexDirection: "column", gap: "3px", alignItems: "flex-end" }}>
-                              {l.autoHideDays   != null && <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#ff980099", color: "#fff" }}>👁️ {l.autoHideDays}ng</span>}
-                              {l.autoDeleteDays != null && <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#dc354599", color: "#fff" }}>🗑️ {l.autoDeleteDays}ng</span>}
+                            <div style={{ padding: "12px" }}>
+                              <div style={{ fontSize: "14px", fontWeight: 600, color: "#fff", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.title}</div>
+                              {l.ownerUsername && <div style={{ fontSize: "11px", color: "#555", marginBottom: "4px" }}>👤 {l.ownerUsername}</div>}
+                              <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {l.address || "—"}</div>
+                              <div style={{ fontSize: "14px", color: "#ff4d4d", fontWeight: 600, marginBottom: "4px" }}>{l.price?.toLocaleString()} đ/tháng</div>
+                              <div style={{ fontSize: "11px", color: "#555", marginBottom: "12px" }}>Cập nhật: {new Date(l.updatedAt || l.createdAt).toLocaleDateString("vi-VN")}</div>
+                              <div style={{ display: "flex", gap: "6px" }}>
+                                <button onClick={() => router.push(`/edit/${l._id}`)} style={{ flex: 1, padding: "6px", background: "#0070f322", color: "#0070f3", border: "1px solid #0070f333", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>✏️ Sửa</button>
+                                <button onClick={() => openListingConfig(l)} style={{ padding: "6px 10px", background: "#ff980022", color: "#ff9800", border: "1px solid #ff980033", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>⏱️</button>
+                                <button onClick={() => openTransferModal(l._id)} style={{ padding: "6px 10px", background: "#7c3aed22", color: "#a78bfa", border: "1px solid #7c3aed33", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }} title="Chuyển sở hữu">🔄</button>
+                                <button onClick={() => handleDeleteListing(l._id)} style={{ flex: 1, padding: "6px", background: "#dc354522", color: "#dc3545", border: "1px solid #dc354533", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>🗑️ Xóa</button>
+                              </div>
                             </div>
                           </div>
-                          <div style={{ padding: "12px" }}>
-                            <div style={{ fontSize: "14px", fontWeight: 600, color: "#fff", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.title}</div>
-                            <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {l.address || "—"}</div>
-                            <div style={{ fontSize: "14px", color: "#ff4d4d", fontWeight: 600, marginBottom: "4px" }}>{l.price?.toLocaleString()} đ/tháng</div>
-                            <div style={{ fontSize: "11px", color: "#555", marginBottom: "12px" }}>Cập nhật: {new Date(l.updatedAt || l.createdAt).toLocaleDateString("vi-VN")}</div>
-                            <div style={{ display: "flex", gap: "6px" }}>
-                              <button onClick={() => router.push(`/edit/${l._id}`)} style={{ flex: 1, padding: "6px", background: "#0070f322", color: "#0070f3", border: "1px solid #0070f333", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>✏️ Sửa</button>
-                              <button onClick={() => openListingConfig(l)} style={{ padding: "6px 10px", background: "#ff980022", color: "#ff9800", border: "1px solid #ff980033", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>⏱️</button>
-                              <button onClick={() => handleDeleteListing(l._id)} style={{ flex: 1, padding: "6px", background: "#dc354522", color: "#dc3545", border: "1px solid #dc354533", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>🗑️ Xóa</button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </>
                 )}
               </>
             )}
           </>
+        )}
+
+        {/* ═══ MODAL CHUYỂN SỞ HỮU ═══ */}
+        {showTransferModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+            <div style={{ background: "#111", padding: "30px", borderRadius: "16px", width: "460px", border: "1px solid #7c3aed55", maxHeight: "90vh", overflowY: "auto" }}>
+              <h3 style={{ color: "#a78bfa", marginTop: 0, marginBottom: "6px" }}>🔄 Chuyển sở hữu tin đăng</h3>
+
+              {/* Preview which listings are being transferred */}
+              <div style={{ marginBottom: "20px", background: "#1a1a1a", borderRadius: "10px", padding: "12px", border: "1px solid #2a2a2a" }}>
+                <div style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}>
+                  {transferIds.length === 1 ? "Tin đăng được chuyển:" : `${transferIds.length} tin đăng được chuyển:`}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "120px", overflowY: "auto" }}>
+                  {transferListingNames.map((name, i) => (
+                    <div key={i} style={{ fontSize: "13px", color: "#ddd", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ color: "#7c3aed", fontSize: "10px" }}>●</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Search + select target user */}
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ fontSize: "12px", color: "#666", display: "block", marginBottom: "8px" }}>Chuyển sang tài khoản</label>
+                <input
+                  type="text"
+                  placeholder="🔍 Tìm theo username hoặc email..."
+                  value={transferSearch}
+                  onChange={e => setTransferSearch(e.target.value)}
+                  style={{ ...inputStyle, marginBottom: "10px" }}
+                  autoFocus
+                />
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "220px", overflowY: "auto" }}>
+                  {transferableUsers.length === 0 ? (
+                    <div style={{ color: "#444", fontSize: "13px", padding: "12px", textAlign: "center" }}>Không tìm thấy tài khoản</div>
+                  ) : (
+                    transferableUsers.map(u => {
+                      const isChosen = transferTargetUser === u._id;
+                      return (
+                        <div
+                          key={u._id}
+                          onClick={() => setTransferTargetUser(u._id)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: "10px",
+                            padding: "10px 12px", borderRadius: "8px", cursor: "pointer",
+                            border: isChosen ? "1px solid #7c3aed" : "1px solid #2a2a2a",
+                            background: isChosen ? "#7c3aed22" : "#1a1a1a",
+                            transition: "all 0.12s",
+                          }}
+                        >
+                          <div style={{
+                            width: "28px", height: "28px", borderRadius: "50%",
+                            background: isChosen ? "#7c3aed" : "#2a2a2a",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "12px", fontWeight: "bold", color: isChosen ? "#fff" : "#555",
+                            flexShrink: 0,
+                          }}>
+                            {u.username[0]?.toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: isChosen ? "#a78bfa" : "#ccc" }}>{u.username}</div>
+                            {u.email && <div style={{ fontSize: "11px", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>}
+                          </div>
+                          <div>{getRoleBadge(u.role)}</div>
+                          {isChosen && <span style={{ color: "#7c3aed", fontSize: "16px" }}>✓</span>}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Warning */}
+              {transferTargetUser && (
+                <div style={{ marginBottom: "20px", padding: "10px 14px", background: "#7c3aed11", border: "1px solid #7c3aed33", borderRadius: "8px", fontSize: "12px", color: "#a78bfa", lineHeight: "1.6" }}>
+                  ⚠️ <b>{transferIds.length} tin đăng</b> sẽ được chuyển sang tài khoản <b>"{users.find(u => u._id === transferTargetUser)?.username}"</b>. Hành động này không thể hoàn tác.
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={handleTransfer}
+                  disabled={!transferTargetUser || transferLoading}
+                  style={{
+                    flex: 1, padding: "12px", border: "none", borderRadius: "8px",
+                    cursor: transferTargetUser && !transferLoading ? "pointer" : "not-allowed",
+                    fontWeight: "bold", fontSize: "14px",
+                    background: transferTargetUser ? "#7c3aed" : "#333",
+                    color: transferTargetUser ? "#fff" : "#555",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {transferLoading ? "Đang chuyển..." : `🔄 Xác nhận chuyển (${transferIds.length} tin)`}
+                </button>
+                <button
+                  onClick={() => { setShowTransferModal(false); setTransferringListingId(null); }}
+                  style={{ flex: 1, padding: "12px", background: "#333", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ═══ MODAL CẤU HÌNH TỰ ĐỘNG ═══ */}

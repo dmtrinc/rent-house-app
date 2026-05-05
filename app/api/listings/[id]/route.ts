@@ -58,6 +58,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Loại bỏ các field kiểm soát, không lưu vào DB
     const { action, deviceId, userId, _adminOverride, _modOverride, ...updateData } = body;
 
+    const cookieStore = await cookies();
+const userRole = cookieStore.get("user_role")?.value;
+if (userId && userRole === "admin") {
+  updateData.userId = userId;
+}
+
     const updateQuery = action
       ? { $set: { status: action, updatedAt: new Date() } }
       : { $set: { ...updateData, updatedAt: new Date() } };

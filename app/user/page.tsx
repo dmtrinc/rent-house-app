@@ -881,6 +881,22 @@ if (u) {
           {/* RIGHT: username + avatar (tên trước, avatar sau) */}
           
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+  {(user?.role === "admin" || user?.role === "mod") && (
+    <Link
+      href={user.role === "admin" ? "/admin" : "/mod"}
+      title={user.role === "admin" ? "Admin Dashboard" : "Mod Dashboard"}
+      style={{
+        display: "flex", alignItems: "center", gap: 4,
+        padding: "4px 10px", borderRadius: 20,
+        background: user.role === "admin" ? "rgba(255,200,0,0.25)" : "rgba(100,180,255,0.25)",
+        border: `1px solid ${user.role === "admin" ? "rgba(255,200,0,0.6)" : "rgba(100,180,255,0.6)"}`,
+        color: "#fff", fontSize: 11, fontWeight: 700, textDecoration: "none",
+        whiteSpace: "nowrap", flexShrink: 0,
+      }}
+    >
+      {user.role === "admin" ? "🫅🏻 Admin" : "🛡️ Mod"}
+    </Link>
+  )}
   <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
     {user?.username}
   </span>
