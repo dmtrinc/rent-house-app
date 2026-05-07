@@ -1,23 +1,43 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import connectMongoDB from "../../../lib/mongodb";
 import Listing from "../../../models/listing";
 import { cookies } from "next/headers";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await connectMongoDB();
 
+    const { searchParams } = new URL(req.url);
+    const page  = Math.max(1, parseInt(searchParams.get("page")  || "1"));
+    const limit = Math.min(50, parseInt(searchParams.get("limit") || "0")); // 0 = tất cả
+
     const cookieStore = await cookies();
     const userRole = cookieStore.get("user_role")?.value;
-
     const isPrivileged = userRole === "admin" || userRole === "mod";
 
-    // Admin/Mod thấy toàn bộ, user thường chỉ thấy active
     const query = isPrivileged ? {} : { status: "active" };
 
-    const listings = await Listing.find(query).sort({ updatedAt: -1 });
+    // Chỉ lấy fields cần thiết cho trang chủ
+    const fields = "title address price coverImage status availableDate highlights updatedAt createdAt deviceId userId";
 
-    return NextResponse.json(listings || []);
+    let dbQuery = Listing.find(query).sort({ updatedAt: -1 }).select(fields);
+
+    if (limit > 0) {
+      dbQuery = dbQuery.skip((page - 1) * limit).limit(limit);
+    }
+
+    const listings = await dbQuery.lean();
+    const total = limit > 0 ? await Listing.countDocuments(query) : listings.length;
+
+    return NextResponse.json(listings || [], {
+      headers: {
+        "X-Total-Count": String(total),
+        "X-Page": String(page),
+        "X-Limit": String(limit),
+        // Cache 30s, revalidate ngầm
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+      },
+    });
   } catch (error: any) {
     console.error("Lỗi fetch listings:", error);
     return NextResponse.json(

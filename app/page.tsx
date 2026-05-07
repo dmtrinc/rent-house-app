@@ -1,8 +1,7 @@
-"use client";
+﻿"use client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 
-/* ─── Availability ── */
 function getAvailabilityInfo(availableDate: string | null | undefined) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
   if (!availableDate) return { label: "Có thể dọn vào ngay", type: "now", btnBg: "#006633", labelColor: "#006633" };
@@ -13,7 +12,6 @@ function getAvailabilityInfo(availableDate: string | null | undefined) {
   return { label: `Trống từ ${avail.toLocaleDateString("vi-VN")}`, type: "late", btnBg: "#a0a0a0", labelColor: "#666" };
 }
 
-/* ─── Skeleton card ── */
 function SkeletonCard() {
   return (
     <div style={{ borderRadius: 14, background: "#fff", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
@@ -27,7 +25,12 @@ function SkeletonCard() {
   );
 }
 
-/* ─── Lazy image with skeleton ── */
+function optimizeCloudinaryUrl(url: string, width = 420): string {
+  if (!url || !url.includes("res.cloudinary.com")) return url;
+  if (url.includes("/upload/w_")) return url;
+  return url.replace("/upload/", `/upload/w_${width},q_auto,f_auto/`);
+}
+
 function LazyImage({ src, alt, isFirst }: { src: string; alt: string; isFirst: boolean }) {
   const [loaded, setLoaded] = useState(false);
   return (
@@ -36,7 +39,7 @@ function LazyImage({ src, alt, isFirst }: { src: string; alt: string; isFirst: b
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite" }} />
       )}
       <img
-        src={src || "/no-image.jpg"}
+        src={optimizeCloudinaryUrl(src) || "/no-image.jpg"}
         alt={alt}
         loading={isFirst ? "eager" : "lazy"}
         decoding={isFirst ? "sync" : "async"}
@@ -64,8 +67,8 @@ export default function HomePage() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [interactiveReady, setInteractiveReady] = useState(false);
   const loaderRef = useRef<HTMLDivElement>(null);
+  const GREEN = "#006633";
 
-  /* ─── Sort ── */
   function sortItems(arr: any[]) {
     if (!arr.length) return arr;
     const rest = [...arr];
@@ -78,14 +81,11 @@ export default function HomePage() {
     return [cheapest, second, ...rest].filter(Boolean);
   }
 
-  /* ─── Init ── */
   useEffect(() => {
     const dId = localStorage.getItem("device_id") || "dev_" + Math.random().toString(36).substring(2, 11);
     if (!localStorage.getItem("device_id")) localStorage.setItem("device_id", dId);
     setMyDeviceId(dId);
     try { setUser(JSON.parse(localStorage.getItem("user") || "null")); } catch { setUser(null); }
-
-    // Load starred từ localStorage
     try {
       const saved = JSON.parse(localStorage.getItem("starred_ids") || "[]");
       setStarredIds(new Set(saved));
@@ -95,8 +95,8 @@ export default function HomePage() {
       setLoading(true);
       try {
         const [resListings, resConfig] = await Promise.all([
-          fetch("/api/listings", { cache: "no-store" }),
-          fetch("/api/admin/config", { cache: "no-store" }).catch(() => null),
+          fetch("/api/listings?limit=0", { headers: { "Cache-Control": "max-age=30" } }),
+          fetch("/api/admin/config", { headers: { "Cache-Control": "max-age=60" } }).catch(() => null),
         ]);
         if (resListings?.ok) {
           const data = await resListings.json();
@@ -112,14 +112,12 @@ export default function HomePage() {
       } catch { setAllItems([]); }
       finally {
         setLoading(false);
-        // Load hiệu ứng sau 300ms để không block render đầu
         setTimeout(() => setInteractiveReady(true), 300);
       }
     };
     fetchData();
   }, []);
 
-  /* ─── Infinite scroll ── */
   useEffect(() => {
     if (!loaderRef.current) return;
     const observer = new IntersectionObserver(
@@ -144,14 +142,6 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [allItems, hasMore, loadingMore]);
 
-  /* ─── Logout ── */
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    localStorage.removeItem("user");
-    window.location.reload();
-  };
-
-  /* ─── Toggle star — lưu vào localStorage + API ── */
   const toggleStar = useCallback(async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -159,9 +149,7 @@ export default function HomePage() {
       const next = new Set(prev);
       const isStarred = next.has(id);
       if (isStarred) next.delete(id); else next.add(id);
-      // Lưu localStorage
       localStorage.setItem("starred_ids", JSON.stringify([...next]));
-      // Gọi API nếu đã đăng nhập
       const userStr = localStorage.getItem("user");
       if (userStr) {
         try {
@@ -185,16 +173,11 @@ export default function HomePage() {
     ...(interactiveReady ? { transition: "transform 0.15s, box-shadow 0.15s" } : {}),
   });
 
-  const GREEN = "#006633";
-
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f8f8" }}>
 
-      {/* HEADER */}
       <header style={{ borderBottom: "1px solid #004d26", position: "sticky", top: 0, backgroundColor: GREEN, zIndex: 100, boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}>
         <div style={{ maxWidth: "1760px", margin: "0 auto", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
-
-          {/* Logo + phone */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <Link href="/" style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -211,12 +194,10 @@ export default function HomePage() {
             </a>
           </div>
 
-          {/* Nav */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             {!systemConfig.globalPostEnabled && (
               <span style={{ fontSize: "12px", color: "#fff", padding: "5px 10px", background: "rgba(255,255,255,0.2)", borderRadius: "22px", whiteSpace: "nowrap" }}>Bảo trì</span>
             )}
-
             <Link href={(systemConfig.globalPostEnabled && user?.canPost !== false) ? "/dang-tin" : "#"}
               onClick={e => { if (!systemConfig.globalPostEnabled || user?.canPost === false) { e.preventDefault(); alert("Chức năng đăng tin tạm khóa"); } }}
               style={{ ...navBtnStyle("#FFD966", GREEN), border: "none" }}
@@ -226,7 +207,6 @@ export default function HomePage() {
               } : {})}>
               Đăng tin
             </Link>
-
             <Link href="/phong-trong" style={{ ...navBtnStyle(), textDecoration: "none" }}
               {...(interactiveReady ? {
                 onMouseEnter: (e: any) => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)"; },
@@ -234,7 +214,6 @@ export default function HomePage() {
               } : {})}>
               Phòng trống
             </Link>
-
             {user ? (
               <Link href="/user" style={{ textDecoration: "none" }}>
                 <div style={{ display: "flex", alignItems: "center", borderRadius: 999, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", overflow: "hidden", cursor: "pointer" }}
@@ -264,9 +243,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* MAIN */}
       <main style={{ maxWidth: "1760px", margin: "0 auto", padding: "24px 20px 60px" }}>
-
         {loading ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "24px" }}>
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -294,7 +271,6 @@ export default function HomePage() {
                     onMouseEnter={interactiveReady ? () => setHoveredId(item._id) : undefined}
                     onMouseLeave={interactiveReady ? () => setHoveredId(null) : undefined}
                   >
-                    {/* Image */}
                     <div style={{ position: "relative", width: "100%", paddingBottom: "72%", overflow: "hidden" }}>
                       <Link href={`/listing/${item._id}`} style={{ display: "block", position: "absolute", inset: 0 }}>
                         <LazyImage src={item.coverImage} alt={item.title} isFirst={isFirst} />
@@ -302,8 +278,6 @@ export default function HomePage() {
                           <div style={{ position: "absolute", top: 10, left: 10, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, padding: "4px 8px", borderRadius: 5, fontWeight: 600 }}>ĐÃ ẨN</div>
                         )}
                       </Link>
-
-                      {/* ⚙️ Tool — load sau */}
                       {interactiveReady && (isOwner || user?.role === "admin" || user?.role === "mod") && (
                         <div style={{ position: "absolute", bottom: 10, right: 10, zIndex: 2 }}>
                           <details style={{ position: "relative" }}>
@@ -325,7 +299,6 @@ export default function HomePage() {
                       )}
                     </div>
 
-                    {/* Card content — hiển thị ngay, không đợi ảnh */}
                     <Link href={`/listing/${item._id}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
                       <div style={{ padding: "14px 14px 10px" }}>
                         <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -345,14 +318,13 @@ export default function HomePage() {
                           <span style={{ fontSize: 17, fontWeight: 800, color: "#111" }}>{item.price?.toLocaleString()} đ</span>
                           <span style={{ fontSize: 13, fontWeight: 600, color: "#555" }}>/tháng</span>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: avail.labelColor }}>{avail.label}</span>
                           <span style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 12, whiteSpace: "nowrap", background: avail.btnBg, color: "#fff", cursor: "pointer" }}>Chi tiết ➜</span>
                         </div>
                       </div>
                     </Link>
 
-                    {/* Quan tâm — load sau */}
                     {interactiveReady && (
                       <button onClick={e => toggleStar(e, item._id)}
                         style={{ position: "absolute", top: 10, right: 10, width: 34, height: 34, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, transform: starred ? "scale(1.2)" : "scale(1)", filter: starred ? "none" : "grayscale(100%)" }}
@@ -365,7 +337,6 @@ export default function HomePage() {
               })}
             </div>
 
-            {/* Infinite scroll loader */}
             <div ref={loaderRef} style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 16 }}>
               {loadingMore && (
                 <div style={{ width: 32, height: 32, border: "3px solid #f0f0f0", borderTop: `3px solid ${GREEN}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
