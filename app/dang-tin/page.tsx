@@ -48,6 +48,7 @@ export default function DangTinPage() {
   const [formData, setFormData] = useState({
     title: "",
     price: "",
+    area: "",          // diện tích
     address: "",
     description: DEFAULT_DESCRIPTION,
     contactPhone: "",
@@ -159,6 +160,7 @@ export default function DangTinPage() {
     const payload = {
       title: formData.title.trim(),
       price: Number(formData.price),
+      area: formData.area !== "" ? Number(formData.area) : null,
       address: formData.address.trim(),
       description: formData.description.trim(),
       contactPhone: formData.contactPhone.trim(),
@@ -283,6 +285,23 @@ export default function DangTinPage() {
             {formData.price && <p style={{ fontSize: "13px", color: "#717171", margin: "6px 0 0 0" }}>≈ {Number(formData.price).toLocaleString()} đ/tháng</p>}
           </div>
 
+          {/* Diện tích */}
+          <div>
+            <label style={{ display: "block", fontSize: "15px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>
+              Diện tích (m²) <span style={{ fontSize: "13px", fontWeight: "400", color: "#717171" }}>— tuỳ chọn</span>
+            </label>
+            <input
+              name="area"
+              type="number"
+              value={formData.area}
+              onChange={e => handleInputChange("area", e.target.value)}
+              placeholder="VD: 25"
+              min="5" max="500" step="0.5"
+              style={inputStyle}
+            />
+            <p style={{ fontSize: "12px", color: "#717171", margin: "5px 0 0 0" }}>Diện tích sử dụng thực tế của phòng</p>
+          </div>
+
           {/* Address */}
           <div>
             <label style={{ display: "block", fontSize: "15px", fontWeight: "600", color: "#222", marginBottom: "8px" }}>Địa chỉ *</label>
@@ -324,8 +343,6 @@ export default function DangTinPage() {
               placeholder="VD: Nội thất, Ban công, AC"
               style={{ ...inputStyle, borderColor: highlightsTotalChars > 34 ? "#dc3545" : "#DDDDDD" }}
             />
-
-            {/* Quick suggestions */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
               {HIGHLIGHT_SUGGESTIONS.map(h => {
                 const already = highlights.includes(h);
@@ -352,7 +369,6 @@ export default function DangTinPage() {
                 );
               })}
             </div>
-
             {highlights.length > 0 && (
               <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
                 {highlights.map((h, i) => (
