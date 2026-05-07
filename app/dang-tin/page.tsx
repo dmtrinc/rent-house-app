@@ -25,7 +25,7 @@ const HIGHLIGHT_SUGGESTIONS = [
 ];
 
 const DEFAULT_DESCRIPTION = `Giá phòng: 
-Diện tích: 
+Diện tích (sàn + gác): 
 Nội thất: full nội thất, ban công, cửa sổ, kệ bếp, máy lạnh
 Gần chợ hay trường học, công viên, bờ sông: 
 Yên tĩnh, hẻm xe hơi hay mặt tiền: 
