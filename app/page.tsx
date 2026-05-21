@@ -321,7 +321,7 @@ export default function HomePage() {
                                 <button onClick={async (e) => {
                                   e.stopPropagation();
                                   if (!confirm("Xác nhận xóa tin này?")) return;
-                                  const res = await fetch(`/api/listings/${item._id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId: myDeviceId, _adminOverride: user?.role === "admin" }) });
+                                  const res = await fetch(`/api/listings/${item._id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId: myDeviceId }) });
                                   if (res.ok) setAllItems(prev => { const next = prev.filter(i => i._id !== item._id); setVisibleItems(next.slice(0, page * PAGE_SIZE)); return next; });
                                   else alert("Lỗi xóa tin");
                                 }} style={{ display: "block", width: "100%", padding: "10px 16px", fontSize: 13, color: "#dc3545", background: "none", border: "none", cursor: "pointer", fontWeight: 600, textAlign: "left" }}>🗑️ Xóa tin</button>

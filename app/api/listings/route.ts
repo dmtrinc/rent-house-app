@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     const query = isPrivileged ? {} : { status: "active" };
 
     // Chỉ lấy fields cần thiết cho trang chủ
-    const fields = "title address price coverImage status availableDate highlights updatedAt createdAt deviceId userId";
+    const fields = "title address price coverImage status availableDate highlights updatedAt createdAt deviceId userId description amenities contactPhone category ownerUsername costs";
 
     let dbQuery = Listing.find(query).sort({ updatedAt: -1 }).select(fields);
 

@@ -19,17 +19,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 async function checkOwnership(listing: any, body: any): Promise<{ allowed: boolean; isMod: boolean }> {
   const cookieStore = await cookies();
-  const userRole = cookieStore.get("user_role")?.value;
-  const userId   = cookieStore.get("user_id")?.value;
-  const { deviceId, _adminOverride, _modOverride } = body;
+  const userRoleCookie = cookieStore.get("user_role")?.value;
+  const userId         = cookieStore.get("user_id")?.value;
+  const { deviceId }   = body;
 
-  // Admin
-  if (userRole === "admin") return { allowed: true, isMod: false };
-  if (_adminOverride && userRole === "admin") return { allowed: true, isMod: false };
+  // Lấy role hiện tại từ DB (xử lý trường hợp cookie cũ/stale sau khi đổi role)
+  let effectiveRole = userRoleCookie;
+  if (userId) {
+    try {
+      const conn = await connectDB();
+      const dbUser = await conn.connection.db?.collection("users")
+        .findOne({ _id: new ObjectId(userId) }, { projection: { role: 1 } });
+      if (dbUser?.role) effectiveRole = dbUser.role;
+    } catch {}
+  }
 
-  // Mod — chỉ cho sửa/ẩn/hiện, KHÔNG cho xóa (xử lý ở DELETE)
-  if (userRole === "mod") return { allowed: true, isMod: true };
-  if (_modOverride && userRole === "mod") return { allowed: true, isMod: true };
+  if (effectiveRole === "admin") return { allowed: true, isMod: false };
+  if (effectiveRole === "mod")   return { allowed: true, isMod: true };
 
   // Chủ tin (theo userId hoặc deviceId)
   if (userId && listing.userId && String(listing.userId) === String(userId))
@@ -56,6 +62,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     // Loại bỏ các field kiểm soát, không lưu vào DB
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { action, deviceId, userId, _adminOverride, _modOverride, ...updateData } = body;
 
     const cookieStore = await cookies();

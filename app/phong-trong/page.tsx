@@ -97,13 +97,21 @@ function toDateInput(dateStr?: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
+function removeDiacritics(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "d");
+}
+
 function parseKeywords(raw: string): string[] {
-  return raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  return raw.split(",").map(s => removeDiacritics(s.trim().toLowerCase())).filter(Boolean);
 }
 
 function buildHaystack(listing: Listing): string {
   const costs = listing.costs;
-  return [
+  return removeDiacritics([
     listing.title,
     listing.address,
     listing.price != null ? String(listing.price) : "",
@@ -121,7 +129,7 @@ function buildHaystack(listing: Listing): string {
     costs?.water ?? "",
     costs?.sv    ?? "",
     costs?.bike  ?? "",
-  ].join(" ").toLowerCase();
+  ].join(" ").toLowerCase());
 }
 
 function matchesKeywords(listing: Listing)   { const h = buildHaystack(listing); return (kw: string[]) => kw.every(k => h.includes(k)); }
@@ -138,7 +146,7 @@ export default function PhongTrongPage() {
   const [andKeywords, setAndKeywords] = useState("");
   const [orKeywords,  setOrKeywords]  = useState("");
   const [notKeywords, setNotKeywords] = useState("");
-  const [sortCol, setSortCol] = useState<"avail" | "price" | "address" | "elec" | "highlights">("avail");
+  const [sortCol, setSortCol] = useState<"avail" | "price" | "title" | "address" | "elec" | "highlights">("avail");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const [pageTitle,  setPageTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
@@ -295,6 +303,7 @@ export default function PhongTrongPage() {
     switch (sortCol) {
       case "price":      return (a.price - b.price) * mul;
       case "elec":       return (getCosts(a).elec - getCosts(b).elec) * mul;
+      case "title":      return a.title.localeCompare(b.title, "vi") * mul;
       case "address":    return a.address.localeCompare(b.address, "vi") * mul;
       case "highlights": return highlightsStr(a).localeCompare(highlightsStr(b), "vi") * mul;
       default: {
@@ -508,7 +517,11 @@ export default function PhongTrongPage() {
               <thead>
                 <tr>
                   <th style={{ ...thBase, width: 24 }}>#</th>
-                  <th style={thSort}   onClick={() => toggleSort("address")}>Phòng / Địa chỉ{sortIcon("address")}</th>
+                  <th style={thNoSort}>
+                    <span onClick={() => toggleSort("title")}   style={{ cursor: "pointer", userSelect: "none" }}>Tên phòng{sortIcon("title")}</span>
+                    <span style={{ color: "rgba(255,255,255,0.4)", margin: "0 4px" }}>/</span>
+                    <span onClick={() => toggleSort("address")} style={{ cursor: "pointer", userSelect: "none" }}>Địa chỉ{sortIcon("address")}</span>
+                  </th>
                   <th style={thSort}   onClick={() => toggleSort("highlights")}>Đặc điểm{sortIcon("highlights")}</th>
                   <th style={thSort}   onClick={() => toggleSort("price")}>Giá{sortIcon("price")}</th>
                   <th style={thSort}   onClick={() => toggleSort("elec")}>Điện{sortIcon("elec")}</th>

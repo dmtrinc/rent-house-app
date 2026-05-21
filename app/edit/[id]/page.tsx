@@ -194,8 +194,6 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
       images,
       coverImage,
       deviceId: localStorage.getItem("device_id"),
-      _adminOverride: user?.role === "admin",
-      _modOverride: user?.role === "mod",
     };
 
     const res = await fetch(`/api/listings/${id}`, {
@@ -225,7 +223,6 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         deviceId: localStorage.getItem("device_id"),
-        _adminOverride: user?.role === "admin",
       }),
     });
 

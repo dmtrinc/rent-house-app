@@ -47,6 +47,28 @@ function fmtMoney(n: number) {
   if (n >= 1_000)     return (n / 1_000).toFixed(0) + "k";
   return n.toLocaleString("vi-VN");
 }
+function removeDiacritics(str: string): string {
+  return str.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "d");
+}
+function parseKeywords(raw: string): string[] {
+  return raw.split(",").map(s => removeDiacritics(s.trim().toLowerCase())).filter(Boolean);
+}
+function buildHaystack(item: ListingItem): string {
+  const c = item.costs;
+  return removeDiacritics([
+    item.title,
+    item.address ?? "",
+    String(item.price),
+    (item.price / 1_000_000).toFixed(1) + "tr",
+    item.contactPhone ?? "",
+    item.availableDate ? new Date(item.availableDate).toLocaleDateString("vi-VN") : "trong san",
+    ...(item.highlights ?? []),
+    c?.elec != null ? `${c.elec} ${(Number(c.elec) / 1000).toFixed(0)}k` : "",
+    c?.water != null ? String(c.water) : "",
+    c?.sv    != null ? String(c.sv) : "",
+    c?.bike  != null ? String(c.bike) : "",
+  ].join(" ").toLowerCase());
+}
 
 const tagStyle = (type: string): React.CSSProperties => ({
   display: "inline-block", padding: "2px 8px", borderRadius: 10,
@@ -282,6 +304,7 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
   const [filterAvail, setFilterAvail] = useState<Set<"now" | "soon" | "late">>(new Set());
   const [andFilter, setAndFilter] = useState("");
   const [orFilter, setOrFilter]   = useState("");
+  const [notFilter, setNotFilter] = useState("");
 
   const fetchData = useCallback(async () => {
     if (!username) return;
@@ -327,20 +350,14 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
   }
   const sortIcon = (col: SortCol) => sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : " ↕";
 
-  function matchItem(l: ListingItem, kw: string) {
-    const k = kw.trim().toLowerCase();
-    if (!k) return true;
-    return l.title.toLowerCase().includes(k) ||
-      (l.address || "").toLowerCase().includes(k) ||
-      (l.highlights || []).some(h => h.toLowerCase().includes(k));
-  }
-
   let list = isEditMode ? [...listings] : listings.filter(l => l.status !== "hide");
   if (filterAvail.size > 0) list = list.filter(l => filterAvail.has(getAvailInfo(l.availableDate).type as any));
-  const andTerms = andFilter.split(",").map(s => s.trim()).filter(Boolean);
-  if (andTerms.length > 0) list = list.filter(l => andTerms.every(kw => matchItem(l, kw)));
-  const orTerms = orFilter.split(",").map(s => s.trim()).filter(Boolean);
-  if (orTerms.length > 0) list = list.filter(l => orTerms.some(kw => matchItem(l, kw)));
+  const andTerms = parseKeywords(andFilter);
+  const orTerms  = parseKeywords(orFilter);
+  const notTerms = parseKeywords(notFilter);
+  if (andTerms.length > 0) list = list.filter(l => { const h = buildHaystack(l); return andTerms.every(k => h.includes(k)); });
+  if (orTerms.length  > 0) list = list.filter(l => { const h = buildHaystack(l); return orTerms.some(k  => h.includes(k)); });
+  if (notTerms.length > 0) list = list.filter(l => { const h = buildHaystack(l); return !notTerms.some(k => h.includes(k)); });
 
   list.sort((a, b) => {
     const m = sortDir === "asc" ? 1 : -1;
@@ -358,12 +375,6 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
   const thSort:   React.CSSProperties = { ...thBase, cursor: "pointer", userSelect: "none" };
   const thNoSort: React.CSSProperties = { ...thBase, cursor: "default" };
   const td: React.CSSProperties = { padding: "5px 8px", verticalAlign: "middle", fontSize: 11, color: "#333", lineHeight: 1.3 };
-
-  const filterBtnStyle = (active: boolean, activeColor = GREEN): React.CSSProperties => ({
-    padding: "4px 11px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer",
-    background: active ? activeColor : "#f0f0f0", color: active ? "#fff" : "#555",
-    border: `1px solid ${active ? activeColor : "transparent"}`, transition: "all .15s",
-  });
 
   if (loading) return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f7f7f8" }}>
@@ -475,9 +486,20 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
             borderRadius: "12px 12px 0 0", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>Lọc:</span>
             {(["now", "soon", "late"] as const).map(f => {
+              const active = filterAvail.has(f);
+              const m = {
+                now:  { bg: "#e8f5e9", color: "#2e7d32", act: "#2e7d32" },
+                soon: { bg: "#fff8e1", color: "#b08500", act: "#b08500" },
+                late: { bg: "#f5f5f5", color: "#666",    act: "#555"    },
+              }[f];
               const labels = { now: "Trống sẵn", soon: "Dưới 1 tháng", late: "Trên 1 tháng" };
-              const colors = { now: "#2e7d32", soon: "#b08500", late: "#555" };
-              return <button key={f} onClick={() => toggleAvail(f)} style={filterBtnStyle(filterAvail.has(f), colors[f])}>✓ {labels[f]}</button>;
+              return (
+                <button key={f} onClick={() => toggleAvail(f)} style={{
+                  padding: "4px 11px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  background: active ? m.act : m.bg, color: active ? "#fff" : m.color,
+                  border: `1px solid ${active ? m.act : "transparent"}`, transition: "all .15s",
+                }}>✓ {labels[f]}</button>
+              );
             })}
             {filterAvail.size > 0 && (
               <button onClick={() => setFilterAvail(new Set())}
@@ -486,34 +508,38 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
                 ✕ Xoá lọc
               </button>
             )}
-            <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{list.length} tin</span>
+            <span style={{ fontSize: 11, color: "#aaa", marginLeft: 2 }}>{list.length} phòng</span>
           </div>
 
-          {/* Search bars */}
+          {/* Keyword filter: AND / OR / NOT */}
           <div style={{ padding: "8px 12px", borderBottom: "1px solid #f0f0f0", background: "#fff",
-            display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: "1 1 140px", position: "relative" }}>
-              <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
-                fontSize: 9, fontWeight: 700, background: "#e8f5e9", color: "#2e7d32",
-                padding: "1px 5px", borderRadius: 6, pointerEvents: "none" }}>VÀ</span>
-              <input value={andFilter} placeholder="vd: quận 1, ban công (cách bằng dấu phẩy)"
-                onChange={e => setAndFilter(e.target.value)}
-                style={{ width: "100%", padding: "6px 10px 6px 34px", border: "1px solid #b2dfdb",
-                  borderRadius: 10, fontSize: 12, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+            display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 150px", minWidth: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e8f5e9", color: "#2e7d32", whiteSpace: "nowrap", flexShrink: 0 }}>AND</span>
+              <input value={andFilter} onChange={e => setAndFilter(e.target.value)}
+                placeholder="tất cả từ khóa (phân cách bằng ,)"
+                style={{ width: "100%", padding: "5px 10px", border: `1px solid ${andFilter ? "#81c784" : "#ddd"}`, borderRadius: 8, fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const }} />
+              {andFilter && <button onClick={() => setAndFilter("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>}
             </div>
-            <div style={{ flex: "1 1 140px", position: "relative" }}>
-              <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
-                fontSize: 9, fontWeight: 700, background: "#fff8e1", color: "#b08500",
-                padding: "1px 5px", borderRadius: 6, pointerEvents: "none" }}>HOẶC</span>
-              <input value={orFilter} placeholder="vd: wifi, điều hoà (cách bằng dấu phẩy)"
-                onChange={e => setOrFilter(e.target.value)}
-                style={{ width: "100%", padding: "6px 10px 6px 42px", border: "1px solid #ffe082",
-                  borderRadius: 10, fontSize: 12, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 150px", minWidth: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#e3f2fd", color: "#1565c0", whiteSpace: "nowrap", flexShrink: 0 }}>OR</span>
+              <input value={orFilter} onChange={e => setOrFilter(e.target.value)}
+                placeholder="bất kỳ từ khóa (phân cách bằng ,)"
+                style={{ width: "100%", padding: "5px 10px", border: `1px solid ${orFilter ? "#64b5f6" : "#ddd"}`, borderRadius: 8, fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const }} />
+              {orFilter && <button onClick={() => setOrFilter("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>}
             </div>
-            {(andFilter || orFilter) && (
-              <button onClick={() => { setAndFilter(""); setOrFilter(""); }}
-                style={{ padding: "5px 10px", borderRadius: 10, fontSize: 11, cursor: "pointer",
-                  background: "#fee", color: "#c00", border: "1px solid #fcc", fontWeight: 600, flexShrink: 0 }}>✕</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, flex: "1 1 150px", minWidth: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 6, background: "#fce4ec", color: "#c62828", whiteSpace: "nowrap", flexShrink: 0 }}>NOT</span>
+              <input value={notFilter} onChange={e => setNotFilter(e.target.value)}
+                placeholder="loại trừ từ khóa (phân cách bằng ,)"
+                style={{ width: "100%", padding: "5px 10px", border: `1px solid ${notFilter ? "#e57373" : "#ddd"}`, borderRadius: 8, fontSize: 11, fontFamily: "inherit", outline: "none", boxSizing: "border-box" as const }} />
+              {notFilter && <button onClick={() => setNotFilter("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: 14, flexShrink: 0, padding: "0 2px" }}>✕</button>}
+            </div>
+            {(andFilter || orFilter || notFilter) && (
+              <button onClick={() => { setAndFilter(""); setOrFilter(""); setNotFilter(""); }}
+                style={{ padding: "4px 10px", borderRadius: 14, fontSize: 10, fontWeight: 600, cursor: "pointer", background: "#fee", color: "#c00", border: "1px solid #fcc", whiteSpace: "nowrap", flexShrink: 0 }}>
+                ✕ Xoá từ khóa
+              </button>
             )}
           </div>
 
