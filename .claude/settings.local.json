@@ -4,7 +4,8 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Admin\\\\rent-house\" -Depth 2)",
       "Bash(Select-Object FullName)",
       "Bash(node -e \"const s = 'Nguyễn Thị Định'; const r = s.normalize\\('NFD'\\).replace\\(/[̀-ͯ]/g,''\\).replace\\(/đ/g,'d'\\).replace\\(/Đ/g,'d'\\); console.log\\(r.toLowerCase\\(\\)\\);\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "PowerShell(cmdkey /delete:git:https://github.com)"
     ]
   }
 }
