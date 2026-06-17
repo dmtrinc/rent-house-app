@@ -50,15 +50,23 @@ function LazyImage({ src, alt, isFirst }: { src: string; alt: string; isFirst: b
 
 const PAGE_SIZE = 10;
 
+/* ─── Cache trong bộ nhớ ──
+ * Giữ nguyên dữ liệu trang chủ khi chuyển trang client-side (sang "phòng trống"
+ * rồi quay lại). Chỉ mất khi tải lại toàn trang (F5). Lưu cả số "page" đã cuộn
+ * để khi quay lại hiện đúng số tin cũ, không reset về 10. */
+let homeCache: { items: any[]; config: any; page: number } | null = null;
+
 export default function HomePage() {
-  const [allItems, setAllItems] = useState<any[]>([]);
-  const [visibleItems, setVisibleItems] = useState<any[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [allItems, setAllItems] = useState<any[]>(() => homeCache?.items ?? []);
+  const [visibleItems, setVisibleItems] = useState<any[]>(() =>
+    homeCache ? homeCache.items.slice(0, homeCache.page * PAGE_SIZE) : []);
+  const [page, setPage] = useState(() => homeCache?.page ?? 1);
+  const [hasMore, setHasMore] = useState(() =>
+    homeCache ? homeCache.items.length > homeCache.page * PAGE_SIZE : true);
   const [user, setUser] = useState<any>(null);
   const [myDeviceId, setMyDeviceId] = useState("");
-  const [systemConfig, setSystemConfig] = useState({ globalPostEnabled: true });
-  const [loading, setLoading] = useState(true);
+  const [systemConfig, setSystemConfig] = useState<any>(() => homeCache?.config ?? { globalPostEnabled: true });
+  const [loading, setLoading] = useState(() => !homeCache);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [interactiveReady, setInteractiveReady] = useState(false);
@@ -90,8 +98,9 @@ export default function HomePage() {
       setStarredIds(new Set(saved));
     } catch {}
 
+    // Stale-while-revalidate: nếu đã có cache thì state hiện ngay (không skeleton),
+    // đồng thời vẫn tải bản mới nhất ở nền để cập nhật.
     const fetchData = async () => {
-      setLoading(true);
       try {
         const [resListings, resConfig] = await Promise.all([
           fetch("/api/listings", { cache: "no-store" }),
@@ -100,15 +109,17 @@ export default function HomePage() {
         if (resListings?.ok) {
           const data = await resListings.json();
           const sorted = sortItems(Array.isArray(data) ? data : []);
+          // Giữ nguyên số tin đang hiển thị (theo page đã cuộn), không reset về 10
+          const count = page * PAGE_SIZE;
           setAllItems(sorted);
-          setVisibleItems(sorted.slice(0, PAGE_SIZE));
-          setHasMore(sorted.length > PAGE_SIZE);
+          setVisibleItems(sorted.slice(0, count));
+          setHasMore(sorted.length > count);
         }
         if (resConfig?.ok) {
           const cfg = await resConfig.json();
           setSystemConfig(cfg);
         }
-      } catch { setAllItems([]); }
+      } catch { if (!homeCache) setAllItems([]); }
       finally {
         setLoading(false);
         // Load hiệu ứng sau 300ms để không block render đầu
@@ -117,6 +128,11 @@ export default function HomePage() {
     };
     fetchData();
   }, []);
+
+  /* ─── Đồng bộ cache mỗi khi dữ liệu / số page thay đổi ── */
+  useEffect(() => {
+    if (allItems.length) homeCache = { items: allItems, config: systemConfig, page };
+  }, [allItems, systemConfig, page]);
 
   /* ─── Infinite scroll ──
    * Phụ thuộc [page, hasMore, allItems]: sau mỗi lần nạp, observer được tạo lại
