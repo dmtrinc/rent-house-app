@@ -153,16 +153,20 @@ const DUMMY_AVG = 4.7;
 const GREEN = "#006633";
 const RED = "#FF385C";
 
+/* ─── Cache trong bộ nhớ (theo từng listing id) ──
+ * Quay lại tin đã xem → hiện ngay từ cache, không skeleton. Mất khi F5. */
+const detailCache = new Map<string, { data: any; similar: any[] }>();
+
 /* ════════════════════════════════════════════════ */
 export default function ListingDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [data, setData] = useState<any>(null);
-  const [similar, setSimilar] = useState<any[]>([]);
+  const [data, setData] = useState<any>(() => detailCache.get(id)?.data ?? null);
+  const [similar, setSimilar] = useState<any[]>(() => detailCache.get(id)?.similar ?? []);
   const [showGallery, setShowGallery] = useState(false);
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [heroReady, setHeroReady] = useState(false);
+  const [heroReady, setHeroReady] = useState(() => !!detailCache.get(id)?.data);
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapInput, setMapInput] = useState("");
   const [customMapUrl, setCustomMapUrl] = useState("");
@@ -188,10 +192,12 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
 
   useEffect(() => {
     if (!id || id === "undefined") return;
+    // Stale-while-revalidate: nếu đã có cache thì state hiện ngay, vẫn tải lại ở nền.
     fetch(`/api/listings/${id}`, { cache: "no-store" })
       .then(r => r.json())
       .then(d => {
         setData(d);
+        detailCache.set(id, { data: d, similar: detailCache.get(id)?.similar ?? [] });
         if (d.coverImage) {
           const img = new Image();
           img.src = d.coverImage;
@@ -204,11 +210,13 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
               if (!Array.isArray(all)) return;
               const others = all.filter(i => i._id !== d._id && i.status !== "hide");
               others.sort((a, b) => Math.abs(a.price - d.price) - Math.abs(b.price - d.price));
-              setSimilar(others.slice(0, 4));
+              const sim = others.slice(0, 4);
+              setSimilar(sim);
+              detailCache.set(id, { data: d, similar: sim });
             }).catch(() => {});
         }, 800);
       })
-      .catch(() => alert("Không thể tải thông tin!"));
+      .catch(() => { if (!detailCache.get(id)) alert("Không thể tải thông tin!"); });
   }, [id]);
 
   /* ── Skeleton ── */
@@ -534,36 +542,44 @@ export default function ListingDetail({ params }: { params: Promise<{ id: string
 
             {/* GALLERY */}
             <div style={{ borderRadius: 14, overflow: "hidden", marginBottom: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: allImages.length > 1 ? "1fr 1fr" : "1fr", gap: 3, background: "#000", maxHeight: 420 }}>
-                <div style={{ gridRow: allImages.length > 2 ? "1/3" : "auto", position: "relative", cursor: "pointer", overflow: "hidden", background: "#e0e0e0" }}
+              <div style={{ display: "flex", gap: 3, background: "#000", height: "clamp(260px, 42vw, 420px)" }}>
+                {/* Ảnh lớn bên trái */}
+                <div style={{ flex: allImages.length > 1 ? "1 1 62%" : "1 1 100%", position: "relative", cursor: "pointer", overflow: "hidden", background: "#e0e0e0" }}
                   onClick={() => { setGalleryIdx(0); setShowGallery(true); }}>
-                  {!heroReady && <Skeleton h={260} r={0} />}
+                  {!heroReady && (
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite" }} />
+                  )}
                   <img
                     src={allImages[0]}
                     alt={data.title}
                     fetchPriority="high"
                     decoding="async"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", minHeight: 200,
+                    style={{ width: "100%", height: "100%", objectFit: "cover",
                       transition: "transform 0.3s", opacity: heroReady ? 1 : 0 }}
                     onLoad={() => setHeroReady(true)}
                     onMouseOver={e => (e.currentTarget.style.transform = "scale(1.03)")}
                     onMouseOut={e => (e.currentTarget.style.transform = "scale(1)")}
                   />
                 </div>
-                {allImages.slice(1, 5).map((img: string, i: number) => (
-                  <div key={i} style={{ position: "relative", cursor: "pointer", overflow: "hidden", height: allImages.length > 2 ? 110 : 200, background: "#e8e8e8" }}
-                    onClick={() => { setGalleryIdx(i + 1); setShowGallery(true); }}>
-                    <img src={img} alt="" loading="lazy" decoding="async"
-                      style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s" }}
-                      onMouseOver={e => (e.currentTarget.style.transform = "scale(1.05)")}
-                      onMouseOut={e => (e.currentTarget.style.transform = "scale(1)")} />
-                    {i === 3 && allImages.length > 5 && (
-                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18, fontWeight: 700 }}>
-                        +{allImages.length - 5} ảnh
+                {/* Cột ảnh nhỏ bên phải — mỗi ảnh flex:1 nên luôn lấp đầy, không bị ô đen */}
+                {allImages.length > 1 && (
+                  <div style={{ flex: "1 1 38%", display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                    {allImages.slice(1, 4).map((img: string, i: number, arr: string[]) => (
+                      <div key={i} style={{ flex: 1, minHeight: 0, position: "relative", cursor: "pointer", overflow: "hidden", background: "#e8e8e8" }}
+                        onClick={() => { setGalleryIdx(i + 1); setShowGallery(true); }}>
+                        <img src={img} alt="" loading="lazy" decoding="async"
+                          style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s" }}
+                          onMouseOver={e => (e.currentTarget.style.transform = "scale(1.05)")}
+                          onMouseOut={e => (e.currentTarget.style.transform = "scale(1)")} />
+                        {i === arr.length - 1 && allImages.length > 4 && (
+                          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18, fontWeight: 700 }}>
+                            +{allImages.length - 4} ảnh
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
               <button onClick={() => setShowGallery(true)}
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
