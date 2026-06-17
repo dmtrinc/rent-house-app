@@ -353,7 +353,7 @@ export default function HomePage() {
                           <span style={{ fontSize: 13, fontWeight: 600, color: "#555" }}>/tháng</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: avail.labelColor }}>{avail.label}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: avail.labelColor, opacity: 0.5 }}>{avail.label}</span>
                           <span style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 12, whiteSpace: "nowrap", background: avail.btnBg, color: "#fff", cursor: "pointer" }}>Chi tiết ➜</span>
                         </div>
                       </div>
