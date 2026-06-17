@@ -59,7 +59,6 @@ export default function HomePage() {
   const [myDeviceId, setMyDeviceId] = useState("");
   const [systemConfig, setSystemConfig] = useState({ globalPostEnabled: true });
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [interactiveReady, setInteractiveReady] = useState(false);
@@ -119,30 +118,31 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  /* ─── Infinite scroll ── */
+  /* ─── Infinite scroll ──
+   * Phụ thuộc [page, hasMore, allItems]: sau mỗi lần nạp, observer được tạo lại
+   * và tự kích hoạt lại nếu điểm cuối VẪN trong tầm nhìn → "thác nước" nạp tiếp
+   * tới khi đủ hoặc điểm cuối ra khỏi màn hình. Tránh kẹt khi quay lại trang
+   * (vị trí cuộn được khôi phục khiến điểm cuối nằm sẵn trong màn hình). */
   useEffect(() => {
-    if (!loaderRef.current) return;
+    const el = loaderRef.current;
+    if (!el || !hasMore) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          setLoadingMore(true);
-          setTimeout(() => {
-            setPage(p => {
-              const next = p + 1;
-              const newItems = allItems.slice(0, next * PAGE_SIZE);
-              setVisibleItems(newItems);
-              setHasMore(newItems.length < allItems.length);
-              setLoadingMore(false);
-              return next;
-            });
-          }, 200);
+        if (entries[0].isIntersecting) {
+          setPage(p => {
+            const next = p + 1;
+            const newItems = allItems.slice(0, next * PAGE_SIZE);
+            setVisibleItems(newItems);
+            setHasMore(newItems.length < allItems.length);
+            return next;
+          });
         }
       },
-      { threshold: 0.1 }
+      { rootMargin: "400px 0px", threshold: 0 }
     );
-    observer.observe(loaderRef.current);
+    observer.observe(el);
     return () => observer.disconnect();
-  }, [allItems, hasMore, loadingMore]);
+  }, [page, hasMore, allItems]);
 
   /* ─── Logout ── */
   const handleLogout = async () => {
@@ -374,7 +374,7 @@ export default function HomePage() {
 
             {/* Infinite scroll loader */}
             <div ref={loaderRef} style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 16 }}>
-              {loadingMore && (
+              {hasMore && (
                 <div style={{ width: 32, height: 32, border: "3px solid #f0f0f0", borderTop: `3px solid ${GREEN}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               )}
               {!hasMore && allItems.length > PAGE_SIZE && (
