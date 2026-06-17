@@ -135,9 +135,14 @@ function buildHaystack(listing: Listing): string {
 function matchesKeywords(listing: Listing)   { const h = buildHaystack(listing); return (kw: string[]) => kw.every(k => h.includes(k)); }
 function matchesAnyKeyword(listing: Listing) { const h = buildHaystack(listing); return (kw: string[]) => kw.some(k  => h.includes(k)); }
 
+/* ─── Cache trong bộ nhớ ──
+ * Giữ nguyên dữ liệu khi chuyển trang client-side (sang trang chủ rồi quay lại).
+ * Chỉ mất khi tải lại toàn trang (F5). */
+let phongTrongCache: { items: Listing[]; title: string; footer: string } | null = null;
+
 export default function PhongTrongPage() {
-  const [items,   setItems]   = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items,   setItems]   = useState<Listing[]>(() => phongTrongCache?.items ?? []);
+  const [loading, setLoading] = useState(() => !phongTrongCache);
   const [interactiveReady, setInteractiveReady] = useState(false);
   const [user,    setUser]    = useState<CurrentUser | null>(null);
 
@@ -149,10 +154,10 @@ export default function PhongTrongPage() {
   const [sortCol, setSortCol] = useState<"avail" | "price" | "title" | "address" | "elec" | "highlights">("avail");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const [pageTitle,  setPageTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
-  const [footerText, setFooterText] = useState(DEFAULT_PHONGTRONG_FOOTER);
-  const [editTitle,  setEditTitle]  = useState(DEFAULT_PHONGTRONG_TITLE);
-  const [editFooter, setEditFooter] = useState(DEFAULT_PHONGTRONG_FOOTER);
+  const [pageTitle,  setPageTitle]  = useState(() => phongTrongCache?.title  ?? DEFAULT_PHONGTRONG_TITLE);
+  const [footerText, setFooterText] = useState(() => phongTrongCache?.footer ?? DEFAULT_PHONGTRONG_FOOTER);
+  const [editTitle,  setEditTitle]  = useState(() => phongTrongCache?.title  ?? DEFAULT_PHONGTRONG_TITLE);
+  const [editFooter, setEditFooter] = useState(() => phongTrongCache?.footer ?? DEFAULT_PHONGTRONG_FOOTER);
   const [adminOpen,  setAdminOpen]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [saveMsg,    setSaveMsg]    = useState("");
@@ -165,6 +170,11 @@ export default function PhongTrongPage() {
     fetchConfig();
     fetchListings();
   }, []);
+
+  /* ─── Đồng bộ cache mỗi khi dữ liệu / tiêu đề / footer thay đổi ── */
+  useEffect(() => {
+    if (items.length) phongTrongCache = { items, title: pageTitle, footer: footerText };
+  }, [items, pageTitle, footerText]);
 
   async function fetchConfig() {
     try {
@@ -196,7 +206,7 @@ export default function PhongTrongPage() {
   }
 
   async function fetchListings() {
-    setLoading(true);
+    // Stale-while-revalidate: có cache thì hiện ngay, vẫn tải bản mới ở nền.
     try {
       const res = await fetch("/api/listings");
       if (res.ok) {
