@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import connectMongoDB from "../lib/mongodb";
 import Listing from "../models/listing";
 import { SITE_URL } from "../lib/site";
+import { listingPath } from "../lib/slug";
 
 // Sitemap được cache mặc định → tự làm mới mỗi giờ để bắt tin mới/tin bị ẩn
 export const revalidate = 3600;
@@ -16,11 +17,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     await connectMongoDB();
     const listings = await Listing.find({ status: "active" })
-      .select("_id updatedAt")
-      .lean<{ _id: { toString(): string }; updatedAt?: Date }[]>();
+      .select("_id title updatedAt")
+      .lean<{ _id: { toString(): string }; title?: string; updatedAt?: Date }[]>();
 
     listingPages = listings.map((l) => ({
-      url: `${SITE_URL}/listing/${l._id.toString()}`,
+      url: `${SITE_URL}${listingPath(l)}`,
       lastModified: l.updatedAt ?? new Date(),
       changeFrequency: "weekly",
       priority: 0.7,

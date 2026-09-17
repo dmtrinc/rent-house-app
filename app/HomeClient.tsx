@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { sortItems, formatPrice, formatDateVN, type ListingDoc } from "../lib/listing-utils";
 import { cld, listingAlt } from "../lib/image";
+import { listingPath } from "../lib/slug";
 
 /* ─── Availability ── */
 function getAvailabilityInfo(availableDate: string | null | undefined) {
@@ -327,7 +328,7 @@ export default function HomeClient({ initialItems, initialConfig, intro }: HomeC
                   >
                     {/* Image */}
                     <div style={{ position: "relative", width: "100%", paddingBottom: "72%", overflow: "hidden" }}>
-                      <Link href={`/listing/${item._id}`} style={{ display: "block", position: "absolute", inset: 0 }}>
+                      <Link href={listingPath(item)} style={{ display: "block", position: "absolute", inset: 0 }}>
                         <LazyImage src={item.coverImage} alt={listingAlt(item.title, item.address)} isFirst={isFirst} />
                         {item.status === "hide" && (
                           <div style={{ position: "absolute", top: 10, left: 10, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, padding: "4px 8px", borderRadius: 5, fontWeight: 600 }}>ĐÃ ẨN</div>
@@ -357,7 +358,7 @@ export default function HomeClient({ initialItems, initialConfig, intro }: HomeC
                     </div>
 
                     {/* Card content — hiển thị ngay, không đợi ảnh */}
-                    <Link href={`/listing/${item._id}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                    <Link href={listingPath(item)} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
                       <div style={{ padding: "14px 14px 10px" }}>
                         <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item.title}

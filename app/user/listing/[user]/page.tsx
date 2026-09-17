@@ -1,5 +1,6 @@
 ﻿"use client";
 import { cld, listingAlt } from "../../../../lib/image";
+import { listingPath } from "../../../../lib/slug";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -238,7 +239,7 @@ function DetailModal({ item, onClose, canEdit, onQuickEdit }: {
                 ✏️ Sửa nhanh
               </button>
             )}
-            <Link href={`/listing/${item._id}`}
+            <Link href={listingPath(item)}
               style={{ flex: 2, textAlign: "center", padding: "10px 0", background: GREEN, color: "#fff",
                 borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
               Xem chi tiết →

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getActiveListings, getSystemConfig } from "../../lib/listings";
 import { SITE_URL, SITE_NAME, HOTLINE_DISPLAY } from "../../lib/site";
+import { listingPath } from "../../lib/slug";
 import PhongTrongClient from "./PhongTrongClient";
 
 // ISR: làm mới mỗi 60 giây; client vẫn fetch nền bản mới nhất (admin/mod thấy cả tin ẩn)
@@ -27,7 +28,7 @@ export default async function PhongTrongPage() {
       "@type": "ListItem",
       position: i + 1,
       name: l.title,
-      url: `${SITE_URL}/listing/${l._id}`,
+      url: `${SITE_URL}${listingPath(l)}`,
     })),
   };
 

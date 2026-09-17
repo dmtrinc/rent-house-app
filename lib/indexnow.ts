@@ -16,7 +16,7 @@ export function indexNowKeyLocation(key: string): string {
 }
 
 /**
- * Gửi danh sách đường dẫn (vd: "/listing/abc", "/") lên IndexNow.
+ * Gửi danh sách đường dẫn (vd: "/phong-tro/phong-abc-<id>", "/") lên IndexNow.
  * Luôn kèm trang chủ và /phong-trong vì danh sách tin ở đó cũng thay đổi.
  */
 export async function notifyIndexNow(paths: string[]): Promise<void> {

@@ -1,5 +1,6 @@
 "use client";
 import { cld } from "../../lib/image";
+import { listingPath } from "../../lib/slug";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -609,7 +610,7 @@ export default function AdminDashboard() {
                               <td style={{ ...td, color: "#555", fontSize: "13px" }}>{idx + 1}</td>
                               <td style={{ ...td, fontWeight: 500, maxWidth: "220px" }}>
                                 <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  <Link href={`/listing/${l._id}`} target="_blank" style={{ color: "#fff", textDecoration: "none" }}>{l.title}</Link>
+                                  <Link href={listingPath(l)} target="_blank" style={{ color: "#fff", textDecoration: "none" }}>{l.title}</Link>
                                 </div>
                                 {/* Show owner if available */}
                                 {l.ownerUsername && (

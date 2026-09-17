@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatPrice, formatDateVN, type ListingDoc } from "../../../lib/listing-utils";
 import { cld, listingAlt } from "../../../lib/image";
+import { listingPath } from "../../../lib/slug";
 
 /* ─── helpers ──────────────────────────────────── */
 function getAvailabilityInfo(availableDate: string | null | undefined) {
@@ -61,7 +62,7 @@ function Skeleton({ w = "100%", h = 16, r = 6, mb = 0 }: { w?: string|number; h?
 function SimilarCard({ item }: { item: any }) {
   const [hov, setHov] = useState(false);
   return (
-    <Link href={`/listing/${item._id}`} style={{ textDecoration: "none" }}>
+    <Link href={listingPath(item)} style={{ textDecoration: "none" }}>
       <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
         style={{ borderRadius: 12, overflow: "hidden", background: "#fff",
           boxShadow: hov ? "0 8px 24px rgba(0,0,0,0.14)" : "0 2px 10px rgba(0,0,0,0.08)",

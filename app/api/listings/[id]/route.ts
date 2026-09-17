@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { notifyIndexNow } from "@/lib/indexnow";
+import { listingPath } from "@/lib/slug";
 import connectDB from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { cookies } from "next/headers";
@@ -78,8 +79,10 @@ if (userId && userRole === "admin") {
 
     await db?.collection("listings").updateOne({ _id: new ObjectId(id) }, updateQuery);
 
-    // Báo Bing/Yandex tin vừa sửa/ẩn/hiện
-    after(() => notifyIndexNow([`/listing/${id}`]));
+    // Báo Bing/Yandex tin vừa sửa/ẩn/hiện. Đổi tiêu đề → slug mới; gửi cả URL cũ (đã 308) lẫn URL mới
+    const oldPath = listingPath({ _id: id, title: listing.title });
+    const newPath = listingPath({ _id: id, title: updateData.title ?? listing.title });
+    after(() => notifyIndexNow(oldPath === newPath ? [newPath] : [oldPath, newPath]));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -110,7 +113,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     await db?.collection("listings").deleteOne({ _id: new ObjectId(id) });
 
     // Báo Bing/Yandex URL này đã 404 để gỡ khỏi index
-    after(() => notifyIndexNow([`/listing/${id}`]));
+    after(() => notifyIndexNow([listingPath({ _id: id, title: listing.title })]));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

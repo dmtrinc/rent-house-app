@@ -1,5 +1,6 @@
 "use client";
 import { cld, listingAlt } from "../../lib/image";
+import { listingPath } from "../../lib/slug";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -600,7 +601,7 @@ function DetailModal({ item, onClose, onAction, onQuickSaved }: {
                   style={{ flex: 1, padding: 10, border: `1px solid ${GREEN}`, borderRadius: 10, background: "#e8f5e9", color: GREEN, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   ✏️ Sửa nhanh
                 </button>
-                <Link href={`/listing/${item._id}`}
+                <Link href={listingPath(item)}
                   style={{ flex: 1, textAlign: "center", padding: 10, background: GREEN, color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
                   Xem chi tiết →
                 </Link>
@@ -688,7 +689,7 @@ function SavedTable({ items, savedIds, onToggleSave }: {
               }
               <div style={{ fontWeight: 700, fontSize: 15, color: "#111", marginBottom: 6 }}>{selected.title}</div>
               {selected.address && <div style={{ fontSize: 13, color: "#444", marginBottom: 12 }}>📍 {selected.address}</div>}
-              <Link href={`/listing/${selected._id}`} style={{ display: "block", textAlign: "center", padding: 11, background: GREEN, color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Xem chi tiết →</Link>
+              <Link href={listingPath(selected)} style={{ display: "block", textAlign: "center", padding: 11, background: GREEN, color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Xem chi tiết →</Link>
             </div>
           </div>
         </div>

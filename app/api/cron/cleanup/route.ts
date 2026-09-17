@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { notifyIndexNow } from "@/lib/indexnow";
+import { listingPath } from "@/lib/slug";
 import connectDB from "@/lib/mongodb";
 
 export async function GET(req: Request) {
@@ -21,11 +22,11 @@ export async function GET(req: Request) {
     const col = conn.connection.db?.collection("listings");
 
     // Lấy id trước khi xóa để báo IndexNow gỡ các URL này
-    const toDelete = (await col?.find(filter, { projection: { _id: 1 } }).toArray()) ?? [];
+    const toDelete = (await col?.find(filter, { projection: { _id: 1, title: 1 } }).toArray()) ?? [];
     const result = await col?.deleteMany(filter);
 
     if (toDelete.length > 0) {
-      after(() => notifyIndexNow(toDelete.map((d: { _id: unknown }) => `/listing/${d._id}`)));
+      after(() => notifyIndexNow(toDelete.map((d: { _id: unknown; title?: string }) => listingPath(d))));
     }
 
     return NextResponse.json({

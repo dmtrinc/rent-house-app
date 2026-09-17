@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatPrice, formatDateVN } from "../../lib/listing-utils";
 import { cld, listingAlt } from "../../lib/image";
+import { listingPath } from "../../lib/slug";
 
 interface RoomCosts {
   elec: number;
@@ -664,7 +665,7 @@ export default function PhongTrongClient({ initialItems, initialTitle, initialFo
                   style={{ flex: 1, textAlign: "center", padding: "11px", background: "#E61E4D", color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
                   📞 Gọi ngay
                 </a>
-                <Link href={`/listing/${selected._id}`} onClick={() => setSelected(null)}
+                <Link href={listingPath(selected)} onClick={() => setSelected(null)}
                   style={{ flex: 1, textAlign: "center", padding: "11px", background: GREEN, color: "#fff", borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
                   Xem chi tiết →
                 </Link>
