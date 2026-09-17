@@ -23,7 +23,12 @@ export default function SiteFooter() {
           <p style={{ fontSize: 13, lineHeight: 1.7, margin: "0 0 10px", color: "rgba(255,255,255,0.85)" }}>
             Cho thuê phòng trọ Bình Thạnh, Phú Nhuận và các quận trung tâm TPHCM. Full nội thất, không chung chủ, giờ giấc tự do, chủ nhà cho thuê trực tiếp.
           </p>
-          <a href={`tel:${HOTLINE}`} style={{ color: YELLOW, fontWeight: 800, fontSize: 16, textDecoration: "none" }}>📞 {HOTLINE_DISPLAY}</a>
+          <a href={`tel:${HOTLINE}`} style={{ color: YELLOW, fontWeight: 800, fontSize: 16, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.37 2.3.57 3.6.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1L6.6 10.8z" />
+            </svg>
+            {HOTLINE_DISPLAY}
+          </a>
           <br />
           <a href={`https://zalo.me/${HOTLINE}`} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, display: "inline-block", marginTop: 4 }}>Zalo: {HOTLINE_DISPLAY}</a>
         </div>
