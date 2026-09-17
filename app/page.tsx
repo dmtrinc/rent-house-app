@@ -62,8 +62,10 @@ const jsonLd = {
 export default async function HomePage() {
   const [items, config] = await Promise.all([getActiveListings(), getSystemConfig()]);
 
+  // JSX truyền qua props sang client component được Flight gửi dạng lazy; React
+  // không thấy được cờ "static child" nên cần key tường minh để không cảnh báo.
   const intro = (
-    <section style={{ marginBottom: 20 }}>
+    <section key="intro" style={{ marginBottom: 20 }}>
       <h1 style={{ fontSize: "clamp(18px, 2.5vw, 24px)", fontWeight: 800, color: "#006633", margin: "0 0 6px", letterSpacing: "-0.3px" }}>
         {`Phòng trọ Bình Thạnh giá tốt, full nội thất – ${SITE_NAME}`}
       </h1>
