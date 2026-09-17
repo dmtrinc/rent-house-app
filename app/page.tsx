@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { preload } from "react-dom";
 import { getActiveListings, getSystemConfig } from "../lib/listings";
 import { SITE_URL, SITE_NAME, HOTLINE, HOTLINE_DISPLAY, LOGO_URL } from "../lib/site";
+import { cld } from "../lib/image";
 import HomeClient from "./HomeClient";
 
 // ISR: HTML trang chủ được cache và làm mới mỗi 60 giây; client vẫn fetch nền bản mới nhất
@@ -61,6 +63,17 @@ const jsonLd = {
 
 export default async function HomePage() {
   const [items, config] = await Promise.all([getActiveListings(), getSystemConfig()]);
+
+  // Preload ảnh LCP: ảnh bìa tin đầu tiên (cùng URL/srcset với LazyImage trong HomeClient)
+  const firstCover = items[0]?.coverImage;
+  if (firstCover) {
+    preload(cld(firstCover, { w: 600 }), {
+      as: "image",
+      fetchPriority: "high",
+      imageSrcSet: `${cld(firstCover, { w: 400 })} 400w, ${cld(firstCover, { w: 600 })} 600w, ${cld(firstCover, { w: 800 })} 800w`,
+      imageSizes: "(max-width: 640px) 100vw, 400px",
+    });
+  }
 
   // JSX truyền qua props sang client component được Flight gửi dạng lazy; React
   // không thấy được cờ "static child" nên cần key tường minh để không cảnh báo.

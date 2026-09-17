@@ -1,4 +1,5 @@
 "use client";
+import { cld } from "../../lib/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -689,7 +690,7 @@ export default function AdminDashboard() {
                           >
                             <div style={{ position: "relative", paddingBottom: "65%", background: "#1a1a1a" }}>
                               {l.coverImage
-                                ? <img src={l.coverImage} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} alt={l.title} />
+                                ? <img src={cld(l.coverImage, { w: 300 })} loading="lazy" decoding="async" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} alt={l.title} />
                                 : <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: "32px" }}>🏘️</div>
                               }
                               {/* Checkbox overlay */}

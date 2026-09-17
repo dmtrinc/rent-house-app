@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { sortItems, formatPrice, formatDateVN, type ListingDoc } from "../lib/listing-utils";
+import { cld, listingAlt } from "../lib/image";
 
 /* ─── Availability ── */
 function getAvailabilityInfo(availableDate: string | null | undefined) {
@@ -41,7 +42,11 @@ function LazyImage({ src, alt, isFirst }: { src: string; alt: string; isFirst: b
       )}
       <img
         ref={ref}
-        src={src || "/no-image.jpg"}
+        src={src ? cld(src, { w: 600 }) : "/no-image.jpg"}
+        srcSet={src ? `${cld(src, { w: 400 })} 400w, ${cld(src, { w: 600 })} 600w, ${cld(src, { w: 800 })} 800w` : undefined}
+        sizes="(max-width: 640px) 100vw, 400px"
+        width={600}
+        height={432}
         alt={alt}
         loading={isFirst ? "eager" : "lazy"}
         decoding={isFirst ? "sync" : "async"}
@@ -215,8 +220,8 @@ export default function HomeClient({ initialItems, initialConfig, intro }: HomeC
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <Link href="/" style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png"
-                  alt="Angiahouse" style={{ height: "32px", width: "auto" }} fetchPriority="high" />
+                <img src={cld("https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png", { w: 128 })}
+                  alt="Angiahouse" width={68} height={63} style={{ height: "32px", width: "auto" }} fetchPriority="high" />
                 <span style={{ fontSize: "16px", fontWeight: "700", color: "#fff", letterSpacing: "-0.5px" }}>ANGIAHOUSE</span>
               </div>
             </Link>
@@ -323,7 +328,7 @@ export default function HomeClient({ initialItems, initialConfig, intro }: HomeC
                     {/* Image */}
                     <div style={{ position: "relative", width: "100%", paddingBottom: "72%", overflow: "hidden" }}>
                       <Link href={`/listing/${item._id}`} style={{ display: "block", position: "absolute", inset: 0 }}>
-                        <LazyImage src={item.coverImage} alt={item.title} isFirst={isFirst} />
+                        <LazyImage src={item.coverImage} alt={listingAlt(item.title, item.address)} isFirst={isFirst} />
                         {item.status === "hide" && (
                           <div style={{ position: "absolute", top: 10, left: 10, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, padding: "4px 8px", borderRadius: 5, fontWeight: 600 }}>ĐÃ ẨN</div>
                         )}

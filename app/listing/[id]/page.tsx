@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { preload } from "react-dom";
 import { getListingById, getSimilarListings } from "../../../lib/listings";
 import { formatPrice, availabilityLabel, type ListingDoc } from "../../../lib/listing-utils";
 import { SITE_URL, SITE_NAME, HOTLINE, HOTLINE_DISPLAY, LOGO_URL } from "../../../lib/site";
+import { cld } from "../../../lib/image";
 import ListingDetailClient from "./ListingDetailClient";
 
 // ISR: HTML được cache và làm mới mỗi 60 giây (dữ liệu lấy bằng Mongoose, không phải fetch)
@@ -36,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `${listing.title} - ${formatPrice(listing.price)}đ/tháng`;
   const description = buildDescription(listing);
   const url = `/listing/${id}`;
-  const image = listing.coverImage || LOGO_URL;
+  const image = listing.coverImage ? cld(listing.coverImage, { w: 1200 }) : LOGO_URL;
   const isHidden = listing.status === "hide";
 
   return {
@@ -65,7 +67,18 @@ export default async function ListingPage({ params }: Props) {
 
   const similar = await getSimilarListings(listing, 4);
   const pageUrl = `${SITE_URL}/listing/${id}`;
-  const images = [listing.coverImage, ...(listing.images ?? [])].filter(Boolean) as string[];
+  const images = ([listing.coverImage, ...(listing.images ?? [])].filter(Boolean) as string[])
+    .map((u) => cld(u, { w: 1200 }));
+
+  // Preload ảnh LCP (hero) ngay trong <head>, cùng URL/srcset với <img> ở ListingDetailClient
+  if (listing.coverImage) {
+    preload(cld(listing.coverImage, { w: 1200 }), {
+      as: "image",
+      fetchPriority: "high",
+      imageSrcSet: `${cld(listing.coverImage, { w: 800 })} 800w, ${cld(listing.coverImage, { w: 1200 })} 1200w`,
+      imageSizes: "(max-width: 900px) 100vw, 62vw",
+    });
+  }
 
   const jsonLd = {
     "@context": "https://schema.org",

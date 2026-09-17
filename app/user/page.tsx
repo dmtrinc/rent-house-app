@@ -1,4 +1,5 @@
 "use client";
+import { cld, listingAlt } from "../../lib/image";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -524,7 +525,7 @@ function DetailModal({ item, onClose, onAction, onQuickSaved }: {
         <div style={{ padding: "16px 18px" }}>
           {/* Cover image */}
           {item.coverImage
-            ? <img src={item.coverImage} alt={item.title} style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />
+            ? <img src={cld(item.coverImage, { w: 600 })} alt={listingAlt(item.title, item.address)} width={600} height={400} loading="lazy" decoding="async" style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />
             : <div style={{ width: "100%", height: 80, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
           }
 
@@ -682,7 +683,7 @@ function SavedTable({ items, savedIds, onToggleSave }: {
             </div>
             <div style={{ padding: "16px 18px" }}>
               {selected.coverImage
-                ? <img src={selected.coverImage} alt="" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
+                ? <img src={cld(selected.coverImage, { w: 600 })} alt={listingAlt(selected.title, selected.address)} width={600} height={400} loading="lazy" decoding="async" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
                 : <div style={{ height: 80, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
               }
               <div style={{ fontWeight: 700, fontSize: 15, color: "#111", marginBottom: 6 }}>{selected.title}</div>

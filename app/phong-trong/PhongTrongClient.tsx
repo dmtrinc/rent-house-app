@@ -3,6 +3,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatPrice, formatDateVN } from "../../lib/listing-utils";
+import { cld, listingAlt } from "../../lib/image";
 
 interface RoomCosts {
   elec: number;
@@ -414,7 +415,7 @@ export default function PhongTrongClient({ initialItems, initialTitle, initialFo
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-              <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png" alt="Angiahouse" style={{ height: 28, width: "auto" }} />
+              <img src={cld("https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png", { w: 128 })} alt="Angiahouse" width={68} height={63} style={{ height: 28, width: "auto" }} />
               <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>ANGIAHOUSE</span>
             </Link>
             <a href="tel:0902225314" style={{ fontSize: 12, fontWeight: 600, color: "#fff", textDecoration: "none", borderLeft: "2px solid rgba(255,255,255,0.3)", paddingLeft: 12, marginLeft: 4 }}>
@@ -627,7 +628,7 @@ export default function PhongTrongClient({ initialItems, initialTitle, initialFo
             </div>
             <div style={{ padding: "16px 18px" }}>
               {selected.coverImage
-                ? <img src={selected.coverImage} alt={selected.title} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
+                ? <img src={cld(selected.coverImage, { w: 600 })} alt={listingAlt(selected.title, selected.address)} width={600} height={400} loading="lazy" decoding="async" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
                 : <div style={{ width: "100%", height: 100, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
               }
               {(selected.highlights || []).length > 0 && (

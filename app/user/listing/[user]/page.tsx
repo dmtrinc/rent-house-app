@@ -1,4 +1,5 @@
 ﻿"use client";
+import { cld, listingAlt } from "../../../../lib/image";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -205,7 +206,7 @@ function DetailModal({ item, onClose, canEdit, onQuickEdit }: {
         </div>
         <div style={{ padding: "16px 18px" }}>
           {item.coverImage
-            ? <img src={item.coverImage} alt={item.title} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
+            ? <img src={cld(item.coverImage, { w: 600 })} alt={listingAlt(item.title, item.address)} width={600} height={400} loading="lazy" decoding="async" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} />
             : <div style={{ height: 80, background: "linear-gradient(135deg,#e8f5e9,#c8e6c9)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏠</div>
           }
           {(item.highlights || []).length > 0 && (
@@ -404,7 +405,7 @@ export default function UserListingPage({ params }: { params: Promise<{ user: st
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Link href="/" style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png"
+                <img src={cld("https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png", { w: 128 })} width={68} height={63}
                   alt="Angiahouse" style={{ height: 32, width: "auto" }} />
                 <span style={{ fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: "-0.5px" }}>ANGIAHOUSE</span>
               </div>

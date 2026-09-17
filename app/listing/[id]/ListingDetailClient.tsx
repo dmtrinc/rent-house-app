@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatPrice, formatDateVN, type ListingDoc } from "../../../lib/listing-utils";
+import { cld, listingAlt } from "../../../lib/image";
 
 /* ─── helpers ──────────────────────────────────── */
 function getAvailabilityInfo(availableDate: string | null | undefined) {
@@ -66,7 +67,8 @@ function SimilarCard({ item }: { item: any }) {
           boxShadow: hov ? "0 8px 24px rgba(0,0,0,0.14)" : "0 2px 10px rgba(0,0,0,0.08)",
           transform: hov ? "translateY(-4px)" : "none", transition: "all 0.2s" }}>
         <div style={{ paddingBottom: "66%", position: "relative", overflow: "hidden" }}>
-          <img src={item.coverImage || "/no-image.jpg"} alt={item.title} loading="lazy"
+          <img src={item.coverImage ? cld(item.coverImage, { w: 400 }) : "/no-image.jpg"}
+            alt={listingAlt(item.title, item.address)} loading="lazy" decoding="async" width={400} height={264}
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover",
               transform: hov ? "scale(1.04)" : "scale(1)", transition: "transform 0.3s" }} />
         </div>
@@ -257,6 +259,9 @@ export default function ListingDetailClient({ id, initialData, initialSimilar }:
   );
 
   const allImages = [data.coverImage, ...(data.images || [])].filter(Boolean);
+  // Ảnh LCP: gốc w=1200, kèm bản 800 cho mobile. Không có ảnh → dùng ảnh mặc định, không srcSet.
+  const heroSrc = allImages[0] ? cld(allImages[0], { w: 1200 }) : "/no-image.jpg";
+  const heroSrcSet = allImages[0] ? `${cld(allImages[0], { w: 800 })} 800w, ${cld(allImages[0], { w: 1200 })} 1200w` : undefined;
   const avail = getAvailabilityInfo(data.availableDate);
   const highlights: string[] = (data.highlights || []).slice(0, 3);
   const furniture = normalizeFurniture(data.furniture || []);
@@ -396,7 +401,8 @@ export default function ListingDetailClient({ id, initialData, initialSimilar }:
           <button onClick={() => setShowGallery(false)}
             style={{ position: "absolute", top: 16, right: 20, background: "none", border: "none", color: "#fff", fontSize: 32, cursor: "pointer" }}>×</button>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 8 }}>{galleryIdx + 1} / {allImages.length}</div>
-          <img src={allImages[galleryIdx]} alt="" style={{ maxHeight: "80vh", maxWidth: "90vw", objectFit: "contain", borderRadius: 8 }}
+          <img src={cld(allImages[galleryIdx], { w: 1600 })} alt={`${listingAlt(data.title, data.address)} - ảnh ${galleryIdx + 1}`}
+            style={{ maxHeight: "80vh", maxWidth: "90vw", objectFit: "contain", borderRadius: 8 }}
             onClick={e => e.stopPropagation()} />
           {allImages.length > 1 && (<>
             <button onClick={e => { e.stopPropagation(); prevImg(); }}
@@ -406,7 +412,8 @@ export default function ListingDetailClient({ id, initialData, initialSimilar }:
           </>)}
           <div style={{ display: "flex", gap: 8, marginTop: 16, overflowX: "auto", maxWidth: "90vw", padding: "4px 0" }}>
             {allImages.map((img: string, i: number) => (
-              <img key={i} src={img} loading="lazy" onClick={e => { e.stopPropagation(); setGalleryIdx(i); }}
+              <img key={i} src={cld(img, { w: 128, h: 96 })} alt="" width={64} height={48} loading="lazy" decoding="async"
+                onClick={e => { e.stopPropagation(); setGalleryIdx(i); }}
                 style={{ width: 64, height: 48, objectFit: "cover", borderRadius: 6, cursor: "pointer",
                   opacity: i === galleryIdx ? 1 : 0.5,
                   border: i === galleryIdx ? "2px solid #fff" : "2px solid transparent", flexShrink: 0 }} />
@@ -426,8 +433,8 @@ export default function ListingDetailClient({ id, initialData, initialSimilar }:
                 width: 34, height: 34, borderRadius: "50%", fontSize: 18, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>←</button>
             <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <img src="https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png"
-                alt="Angiahouse" style={{ height: 28, width: "auto" }} />
+              <img src={cld("https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648613/logo_xjxqjd.png", { w: 128 })}
+                alt="Angiahouse" width={68} height={63} style={{ height: 28, width: "auto" }} />
               <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>ANGIAHOUSE</span>
             </Link>
             <a href="tel:0902225314"
@@ -566,8 +573,12 @@ export default function ListingDetailClient({ id, initialData, initialSimilar }:
                   )}
                   <img
                     ref={heroRef}
-                    src={allImages[0]}
-                    alt={data.title}
+                    src={heroSrc}
+                    srcSet={heroSrcSet}
+                    sizes="(max-width: 900px) 100vw, 62vw"
+                    width={1200}
+                    height={800}
+                    alt={listingAlt(data.title, data.address)}
                     fetchPriority="high"
                     decoding="async"
                     style={{ width: "100%", height: "100%", objectFit: "cover",
@@ -583,7 +594,8 @@ export default function ListingDetailClient({ id, initialData, initialSimilar }:
                     {allImages.slice(1, 4).map((img: string, i: number, arr: string[]) => (
                       <div key={i} style={{ flex: 1, minHeight: 0, position: "relative", cursor: "pointer", overflow: "hidden", background: "#e8e8e8" }}
                         onClick={() => { setGalleryIdx(i + 1); setShowGallery(true); }}>
-                        <img src={img} alt="" loading="lazy" decoding="async"
+                        <img src={cld(img, { w: 300 })} alt={`${listingAlt(data.title, data.address)} - ảnh ${i + 2}`}
+                          loading="lazy" decoding="async" width={300} height={200}
                           style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s" }}
                           onMouseOver={e => (e.currentTarget.style.transform = "scale(1.05)")}
                           onMouseOut={e => (e.currentTarget.style.transform = "scale(1)")} />
