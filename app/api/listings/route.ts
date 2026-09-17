@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyIndexNow } from "@/lib/indexnow";
 import connectMongoDB from "../../../lib/mongodb";
 import Listing from "../../../models/listing";
 import { cookies } from "next/headers";
@@ -40,6 +41,9 @@ export async function POST(req: Request) {
 
     await connectMongoDB();
     const newListing = await Listing.create(data);
+
+    // Báo Bing/Yandex có tin mới (chạy sau khi trả response, không chặn)
+    after(() => notifyIndexNow([`/listing/${newListing._id}`]));
 
     return NextResponse.json(
       { message: "Tạo tin đăng thành công", id: newListing._id },

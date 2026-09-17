@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyIndexNow } from "@/lib/indexnow";
 import connectDB from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { cookies } from "next/headers";
@@ -77,6 +78,9 @@ if (userId && userRole === "admin") {
 
     await db?.collection("listings").updateOne({ _id: new ObjectId(id) }, updateQuery);
 
+    // Báo Bing/Yandex tin vừa sửa/ẩn/hiện
+    after(() => notifyIndexNow([`/listing/${id}`]));
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -104,6 +108,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
 
     await db?.collection("listings").deleteOne({ _id: new ObjectId(id) });
+
+    // Báo Bing/Yandex URL này đã 404 để gỡ khỏi index
+    after(() => notifyIndexNow([`/listing/${id}`]));
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

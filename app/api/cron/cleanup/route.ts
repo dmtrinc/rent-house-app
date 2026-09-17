@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyIndexNow } from "@/lib/indexnow";
 import connectDB from "@/lib/mongodb";
 
 export async function GET(req: Request) {
@@ -16,10 +17,16 @@ export async function GET(req: Request) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const result = await conn.connection.db?.collection("listings").deleteMany({
-      status: "hide",
-      hiddenAt: { $lte: thirtyDaysAgo },
-    });
+    const filter = { status: "hide", hiddenAt: { $lte: thirtyDaysAgo } };
+    const col = conn.connection.db?.collection("listings");
+
+    // Lấy id trước khi xóa để báo IndexNow gỡ các URL này
+    const toDelete = (await col?.find(filter, { projection: { _id: 1 } }).toArray()) ?? [];
+    const result = await col?.deleteMany(filter);
+
+    if (toDelete.length > 0) {
+      after(() => notifyIndexNow(toDelete.map((d: { _id: unknown }) => `/listing/${d._id}`)));
+    }
 
     return NextResponse.json({
       message: "Cleanup successful",
