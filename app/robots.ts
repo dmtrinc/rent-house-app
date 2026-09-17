@@ -15,7 +15,6 @@ export default function robots(): MetadataRoute.Robots {
         "/dang-tin",
         "/edit/",
         "/user",
-        "/page2",
       ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
