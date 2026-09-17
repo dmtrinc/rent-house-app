@@ -3,8 +3,9 @@ import "./globals.css";
 import { Inter } from "next/font/google";
 import { SITE_URL, SITE_NAME, LOGO_URL, HOTLINE_DISPLAY } from "../lib/site";
 
-// Sử dụng font Inter để giao diện trông hiện đại và chuyên nghiệp
-const inter = Inter({ subsets: ["latin"] });
+// Sử dụng font Inter để giao diện trông hiện đại và chuyên nghiệp.
+// Subset "vietnamese" để chữ có dấu không fallback sang font khác (gây CLS); display swap để text hiện ngay.
+const inter = Inter({ subsets: ["latin", "vietnamese"], display: "swap" });
 
 export const metadata: Metadata = {
   // Gốc để các URL tương đối (canonical, og:image...) thành URL tuyệt đối
