@@ -2,6 +2,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TitleSeoHint, DescriptionSeoHint, ImagesSeoHint } from "../../components/SeoHint";
 
 const FURNITURE_OPTIONS = [
   { icon: "❄️", label: "Máy lạnh" },
@@ -286,6 +287,7 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
               <p style={{ fontSize: "13px", color: "#717171", margin: 0 }}>Tối đa 10 ảnh, 10MB/ảnh</p>
             </label>
 
+            <ImagesSeoHint count={images.length} />
             {images.length > 0 && (
               <div style={{ marginTop: "16px" }}>
                 <p style={{ fontSize: "13px", color: "#717171", marginBottom: "10px" }}>Click vào ảnh để chọn làm ảnh đại diện</p>
@@ -319,7 +321,8 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
               Tiêu đề * <span style={{ fontSize: "13px", fontWeight: "400", color: "#717171" }}>({formValues.title.length}/100)</span>
             </label>
             <input value={formValues.title} onChange={e => setFormValues({ ...formValues, title: e.target.value })}
-              placeholder="VD: Phòng trọ 25m² gần ĐH Bách Khoa, đầy đủ nội thất" required maxLength={100} style={inputStyle} />
+              placeholder="VD: Phòng trọ gác lửng 35m² full nội thất Xô Viết Nghệ Tĩnh, Bình Thạnh" required maxLength={100} style={inputStyle} />
+            <TitleSeoHint value={formValues.title} />
           </div>
 
           {/* Price */}
@@ -468,6 +471,7 @@ export default function EditListingPage({ params }: { params: Promise<{ id: stri
             <p style={{ fontSize: "12px", color: "#717171", margin: "5px 0 0 0" }}>
               Có thể nhúng link YouTube hoặc TikTok vào mô tả để hiển thị video
             </p>
+            <DescriptionSeoHint value={formValues.description} />
           </div>
 
           {/* Action Buttons */}
