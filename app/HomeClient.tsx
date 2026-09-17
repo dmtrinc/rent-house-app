@@ -1,63 +1,9 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { sortItems, formatPrice, formatDateVN, type ListingDoc } from "../lib/listing-utils";
-import { cld, listingAlt } from "../lib/image";
-import { listingPath } from "../lib/slug";
-
-/* ─── Availability ── */
-function getAvailabilityInfo(availableDate: string | null | undefined) {
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  if (!availableDate) return { label: "Có thể dọn vào ngay", type: "now", btnBg: "#006633", labelColor: "#006633" };
-  const avail = new Date(availableDate);
-  const diffDays = Math.ceil((avail.getTime() - now.getTime()) / 86400000);
-  if (diffDays < 2) return { label: "Có thể dọn vào ngay", type: "now", btnBg: "#006633", labelColor: "#006633" };
-  if (diffDays < 30) return { label: `Trống từ ${formatDateVN(avail)}`, type: "soon", btnBg: "#FFD8A8", labelColor: "#b08500" };
-  return { label: `Trống từ ${formatDateVN(avail)}`, type: "late", btnBg: "#a0a0a0", labelColor: "#666" };
-}
-
-/* ─── Skeleton card ── */
-function SkeletonCard() {
-  return (
-    <div style={{ borderRadius: 14, background: "#fff", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
-      <div style={{ width: "100%", paddingBottom: "72%", background: "linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite" }} />
-      <div style={{ padding: "14px 14px 12px" }}>
-        <div style={{ height: 16, background: "#f0f0f0", borderRadius: 6, marginBottom: 8, width: "80%", animation: "shimmer 1.4s infinite" }} />
-        <div style={{ height: 12, background: "#f0f0f0", borderRadius: 6, marginBottom: 10, width: "60%", animation: "shimmer 1.4s infinite" }} />
-        <div style={{ height: 20, background: "#f0f0f0", borderRadius: 6, width: "40%", animation: "shimmer 1.4s infinite" }} />
-      </div>
-    </div>
-  );
-}
-
-/* ─── Lazy image with skeleton ── */
-function LazyImage({ src, alt, isFirst }: { src: string; alt: string; isFirst: boolean }) {
-  const [loaded, setLoaded] = useState(false);
-  const ref = useRef<HTMLImageElement>(null);
-  // Ảnh trong HTML server có thể tải xong trước khi hydrate → onLoad không chạy.
-  useEffect(() => { if (ref.current?.complete) setLoaded(true); }, []);
-  return (
-    <div style={{ position: "absolute", inset: 0 }}>
-      {!loaded && (
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite" }} />
-      )}
-      <img
-        ref={ref}
-        src={src ? cld(src, { w: 600 }) : "/no-image.jpg"}
-        srcSet={src ? `${cld(src, { w: 400 })} 400w, ${cld(src, { w: 600 })} 600w, ${cld(src, { w: 800 })} 800w` : undefined}
-        sizes="(max-width: 640px) 100vw, 400px"
-        width={600}
-        height={432}
-        alt={alt}
-        loading={isFirst ? "eager" : "lazy"}
-        decoding={isFirst ? "sync" : "async"}
-        fetchPriority={isFirst ? "high" : "low"}
-        onLoad={() => setLoaded(true)}
-        style={{ width: "100%", height: "100%", objectFit: "cover", opacity: loaded ? 1 : 0, transition: "opacity 0.3s" }}
-      />
-    </div>
-  );
-}
+import { sortItems, type ListingDoc } from "../lib/listing-utils";
+import { cld } from "../lib/image";
+import ListingCard, { SkeletonCard } from "./components/ListingCard";
 
 const PAGE_SIZE = 10;
 
@@ -73,9 +19,11 @@ export interface HomeClientProps {
   initialConfig?: { globalPostEnabled: boolean };
   /** Khối H1 + giới thiệu do server render, đặt đầu <main>. */
   intro?: React.ReactNode;
+  /** Footer server render (link khu vực, giới thiệu, liên hệ), đặt cuối trang. */
+  footer?: React.ReactNode;
 }
 
-export default function HomeClient({ initialItems, initialConfig, intro }: HomeClientProps) {
+export default function HomeClient({ initialItems, initialConfig, intro, footer }: HomeClientProps) {
   // Ưu tiên cache client (quay lại trang) → dữ liệu server → rỗng (skeleton)
   const [allItems, setAllItems] = useState<any[]>(() => homeCache?.items ?? initialItems);
   const [visibleItems, setVisibleItems] = useState<any[]>(() =>
@@ -310,33 +258,21 @@ export default function HomeClient({ initialItems, initialConfig, intro }: HomeC
                 if (user?.role !== "admin" && user?.role !== "mod" && item.status === "hide") return null;
                 const isOwner = (item.deviceId === myDeviceId) || (user && item.userId === user._id);
                 const isHovered = interactiveReady && hoveredId === item._id;
-                const avail = getAvailabilityInfo(item.availableDate);
                 const starred = starredIds.has(item._id);
                 const isFirst = idx < 2;
 
                 return (
-                  <div key={item._id}
-                    style={{
-                      position: "relative", borderRadius: 14, background: "#fff",
-                      boxShadow: isHovered ? "0 8px 28px rgba(0,0,0,0.18)" : "0 2px 10px rgba(0,0,0,0.09)",
-                      ...(interactiveReady ? { transition: "transform 0.2s, box-shadow 0.2s" } : {}),
-                      transform: isHovered ? "translateY(-4px)" : "translateY(0)",
-                      overflow: "hidden",
-                    }}
+                  <ListingCard
+                    key={item._id}
+                    item={item}
+                    isFirst={isFirst}
+                    hovered={isHovered}
+                    animate={interactiveReady}
                     onMouseEnter={interactiveReady ? () => setHoveredId(item._id) : undefined}
                     onMouseLeave={interactiveReady ? () => setHoveredId(null) : undefined}
-                  >
-                    {/* Image */}
-                    <div style={{ position: "relative", width: "100%", paddingBottom: "72%", overflow: "hidden" }}>
-                      <Link href={listingPath(item)} style={{ display: "block", position: "absolute", inset: 0 }}>
-                        <LazyImage src={item.coverImage} alt={listingAlt(item.title, item.address)} isFirst={isFirst} />
-                        {item.status === "hide" && (
-                          <div style={{ position: "absolute", top: 10, left: 10, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, padding: "4px 8px", borderRadius: 5, fontWeight: 600 }}>ĐÃ ẨN</div>
-                        )}
-                      </Link>
-
-                      {/* ⚙️ Tool — load sau */}
-                      {interactiveReady && (isOwner || user?.role === "admin" || user?.role === "mod") && (
+                    imageOverlay={
+                      /* ⚙️ Tool — load sau */
+                      interactiveReady && (isOwner || user?.role === "admin" || user?.role === "mod") ? (
                         <div style={{ position: "absolute", bottom: 10, right: 10, zIndex: 2 }}>
                           <details style={{ position: "relative" }}>
                             <summary style={{ width: 32, height: 32, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, listStyle: "none" }}>⚙️</summary>
@@ -354,45 +290,19 @@ export default function HomeClient({ initialItems, initialConfig, intro }: HomeC
                             </div>
                           </details>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Card content — hiển thị ngay, không đợi ảnh */}
-                    <Link href={listingPath(item)} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-                      <div style={{ padding: "14px 14px 10px" }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {item.title}
-                        </h3>
-                        <p style={{ fontSize: 13, color: "#666", margin: "0 0 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          📍 {item.address || "TPHCM"}
-                        </p>
-                        {item.highlights?.length > 0 && (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
-                            {item.highlights.slice(0, 3).map((h: string) => (
-                              <span key={h} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 12, background: "#e8f5e9", color: "#2e7d32", fontWeight: 500 }}>✓ {h}</span>
-                            ))}
-                          </div>
-                        )}
-                        <div style={{ marginBottom: 2 }}>
-                          <span style={{ fontSize: 17, fontWeight: 800, color: "#111" }}>{formatPrice(item.price)} đ</span>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#555" }}>/tháng</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: avail.labelColor, opacity: avail.type === "late" ? 0.5 : 1 }}>{avail.label}</span>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 12, whiteSpace: "nowrap", background: avail.btnBg, color: "#fff", cursor: "pointer" }}>Chi tiết ➜</span>
-                        </div>
-                      </div>
-                    </Link>
-
-                    {/* Quan tâm — load sau */}
-                    {interactiveReady && (
-                      <button onClick={e => toggleStar(e, item._id)}
-                        style={{ position: "absolute", top: 10, right: 10, width: 34, height: 34, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, transform: starred ? "scale(1.2)" : "scale(1)", filter: starred ? "none" : "grayscale(100%)" }}
-                        title="Quan tâm">
-                        😍
-                      </button>
-                    )}
-                  </div>
+                      ) : null
+                    }
+                    extra={
+                      /* Quan tâm — load sau */
+                      interactiveReady ? (
+                        <button onClick={e => toggleStar(e, item._id)}
+                          style={{ position: "absolute", top: 10, right: 10, width: 34, height: 34, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, transform: starred ? "scale(1.2)" : "scale(1)", filter: starred ? "none" : "grayscale(100%)" }}
+                          title="Quan tâm">
+                          😍
+                        </button>
+                      ) : null
+                    }
+                  />
                 );
               })}
             </div>
@@ -416,6 +326,8 @@ export default function HomeClient({ initialItems, initialConfig, intro }: HomeC
           </div>
         )}
       </main>
+
+      {footer}
 
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes spin { to { transform: rotate(360deg); } }

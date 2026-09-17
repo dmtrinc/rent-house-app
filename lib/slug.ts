@@ -4,14 +4,20 @@
 const LISTING_PREFIX = "/phong-tro/";
 const MAX_SLUG_LENGTH = 80;
 
-/** Bỏ dấu tiếng Việt, lowercase, thay ký tự đặc biệt bằng "-", cắt 80 ký tự.
- * "P3 88/9 Bạch Đằng, Hàng Xanh" → "p3-88-9-bach-dang-hang-xanh" */
-export function toSlug(input: string | null | undefined): string {
-  const s = (input || "")
+/** Bỏ dấu tiếng Việt + lowercase, giữ nguyên khoảng trắng/ký tự khác.
+ * Dùng để so khớp địa chỉ không phân biệt dấu: "Bạch Đằng" → "bach dang". */
+export function unaccent(input: string | null | undefined): string {
+  return (input || "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "") // bỏ dấu tổ hợp
     .replace(/[đĐ]/g, "d")
-    .toLowerCase()
+    .toLowerCase();
+}
+
+/** Bỏ dấu tiếng Việt, lowercase, thay ký tự đặc biệt bằng "-", cắt 80 ký tự.
+ * "P3 88/9 Bạch Đằng, Hàng Xanh" → "p3-88-9-bach-dang-hang-xanh" */
+export function toSlug(input: string | null | undefined): string {
+  const s = unaccent(input)
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (s.length <= MAX_SLUG_LENGTH) return s;

@@ -4,6 +4,7 @@ import { getActiveListings, getSystemConfig } from "../lib/listings";
 import { SITE_URL, SITE_NAME, HOTLINE, HOTLINE_DISPLAY, LOGO_URL } from "../lib/site";
 import { cld } from "../lib/image";
 import HomeClient from "./HomeClient";
+import SiteFooter from "./components/SiteFooter";
 
 // ISR: HTML trang chủ được cache và làm mới mỗi 60 giây; client vẫn fetch nền bản mới nhất
 export const revalidate = 60;
@@ -102,6 +103,7 @@ export default async function HomePage() {
         initialItems={items}
         initialConfig={{ globalPostEnabled: config.globalPostEnabled }}
         intro={intro}
+        footer={<SiteFooter key="footer" />}
       />
     </>
   );
