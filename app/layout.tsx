@@ -1,28 +1,45 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
+import { SITE_URL, SITE_NAME, LOGO_URL, HOTLINE_DISPLAY } from "../lib/site";
 
 // Sử dụng font Inter để giao diện trông hiện đại và chuyên nghiệp
 const inter = Inter({ subsets: ["latin"] });
 
-// Đường dẫn logo Cloudinary của bạn
-const logoOnlineUrl = "https://res.cloudinary.com/dm30nbwuo/image/upload/v1777648952/logo_an_gia_house_chrome_hlb8nr.png";
-
 export const metadata: Metadata = {
-  // Tiêu đề hiển thị trên tab trình duyệt
-  title: "Phòng trọ Angiahouse",
-  description: "Hệ thống phòng trọ Angiahouse TPHCM - 090.222.5314",
-  
+  // Gốc để các URL tương đối (canonical, og:image...) thành URL tuyệt đối
+  metadataBase: new URL(SITE_URL),
+  // Tiêu đề hiển thị trên tab trình duyệt; trang con dùng template "%s | Angiahouse"
+  title: {
+    default: `Phòng trọ Bình Thạnh giá tốt, full nội thất | ${SITE_NAME}`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: `${SITE_NAME} cho thuê phòng trọ Bình Thạnh, TPHCM: Hàng Xanh, Bạch Đằng, Xô Viết Nghệ Tĩnh... Full nội thất, không chung chủ, giá từ 3,5 triệu. Hotline ${HOTLINE_DISPLAY}.`,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "vi_VN",
+    siteName: SITE_NAME,
+    url: "/",
+    images: [{ url: LOGO_URL, width: 512, height: 512, alt: SITE_NAME }],
+  },
+  twitter: { card: "summary_large_image" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
+
   // Cấu hình để hiện logo trên tab Google (Favicon)
   icons: {
     icon: [
       {
-        url: logoOnlineUrl,
-        href: logoOnlineUrl,
+        url: LOGO_URL,
+        href: LOGO_URL,
       },
     ],
     // Hiển thị logo đẹp hơn khi lưu trang web ra màn hình chính điện thoại (iPhone/Android)
-    apple: logoOnlineUrl,
+    apple: LOGO_URL,
   },
 };
 
