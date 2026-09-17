@@ -12,6 +12,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, lastModified: new Date(), changeFrequency: "daily", priority: 1 },
     { url: `${SITE_URL}/phong-trong`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
+    { url: `${SITE_URL}/gioi-thieu`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE_URL}/lien-he`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
     // Trang khu vực (landing page theo từ khóa)
     ...AREAS.map((a) => ({
       url: `${SITE_URL}${areaPath(a)}`,
