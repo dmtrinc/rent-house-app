@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { addMonths, billTotal, electricUsage, money, monthLabel, parseNumber } from "../../../lib/billing";
+import { downloadMeterTemplate, readMeterFile } from "../../../lib/meter-file";
 import { api, btn, card, input, label, type MonthRow } from "./ui";
 
 type Entry = { oldMeter: string; newMeter: string; otherAmount: string; otherNote: string };
@@ -23,6 +24,8 @@ export default function MeterTab({
   const [readingDate, setReadingDate] = useState(todayVN());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string; errors?: string[] } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Điền sẵn: phòng đã có hóa đơn → lấy số đã lập; chưa có → số cũ = số mới của tháng trước
   useEffect(() => {
@@ -100,6 +103,58 @@ export default function MeterTab({
     }
   };
 
+  const downloadTemplate = async () => {
+    try {
+      await downloadMeterTemplate(
+        `so-dien-hoa-don-thang-${month.slice(5)}-${month.slice(0, 4)}.xlsx`,
+        `Chốt số điện - hóa đơn tháng ${monthLabel(month)}`,
+        rows.map((r) => ({
+          code: r.room.code,
+          tenantName: r.room.tenantName,
+          oldMeter: parseNumber(entries[r.room._id]?.oldMeter),
+          newMeter: entries[r.room._id]?.newMeter.trim() ? parseNumber(entries[r.room._id].newMeter) : null,
+        }))
+      );
+    } catch (e: any) {
+      setImportMsg({ ok: false, text: e.message });
+    }
+  };
+
+  const importFile = async (ev: React.ChangeEvent<HTMLInputElement>) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const fileRows = await readMeterFile(file);
+      const byCode = new Map(rows.map((r) => [r.room.code.toLowerCase(), r.room._id]));
+      const unknown: string[] = [];
+      let filled = 0;
+      const next = { ...entries };
+      for (const f of fileRows) {
+        const id = byCode.get(f.code.toLowerCase());
+        if (!id) { unknown.push(f.code); continue; }
+        const e = { ...next[id] };
+        if (f.newMeter !== null) { e.newMeter = String(f.newMeter); filled++; }
+        if (f.otherAmount !== null) e.otherAmount = money(f.otherAmount);
+        if (f.otherNote !== null) e.otherNote = f.otherNote;
+        next[id] = e;
+      }
+      setEntries(next);
+      setImportMsg({
+        ok: filled > 0,
+        text:
+          `Đã điền số mới cho ${filled} phòng từ file “${file.name}”. Kiểm tra lại rồi bấm Lưu & lập hóa đơn.` +
+          (unknown.length ? ` Không có phòng: ${[...new Set(unknown)].join(", ")}.` : ""),
+      });
+    } catch (e: any) {
+      setImportMsg({ ok: false, text: e.message });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading && rows.length === 0) return <p style={{ color: "#888" }}>Đang tải...</p>;
   if (!loading && rows.length === 0)
     return (
@@ -120,6 +175,14 @@ export default function MeterTab({
           Nhập <b>số điện mới</b> của từng phòng (đồng hồ ngày 23–25/{monthLabel(addMonths(month, -1)).slice(0, 2)}).
           Số cũ tự lấy từ hóa đơn tháng trước. Hệ thống tự tính tiền phòng, điện, nước, xe, phí quản lý.
         </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={downloadTemplate} style={btn("#1f1f1f")}>⬇️ Tải file mẫu</button>
+          <label style={{ ...btn("#2563eb"), display: "inline-block" }}>
+            {importing ? "Đang đọc..." : "📤 Nhập file số điện"}
+            <input type="file" accept=".xlsx,.csv" onChange={importFile} style={{ display: "none" }} disabled={importing} />
+          </label>
+        </div>
+        {importMsg && <div style={{ width: "100%", fontSize: 14, color: importMsg.ok ? "#4ade80" : "#f87171" }}>{importMsg.text}</div>}
       </div>
 
       <div className="meter-grid">
