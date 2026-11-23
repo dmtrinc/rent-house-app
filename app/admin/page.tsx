@@ -438,6 +438,9 @@ export default function AdminDashboard() {
               </>
             )}
 
+            <Link href="/admin/hoa-don" style={{ color: "#000", background: "#ff9800", textDecoration: "none", padding: "10px 15px", borderRadius: "8px", fontWeight: "bold" }}>
+              🧾 Hóa đơn tiền nhà
+            </Link>
             <Link href="/" style={{ color: "#888", textDecoration: "none", border: "1px solid #333", padding: "10px 15px", borderRadius: "8px" }}>
               Về trang chủ
             </Link>

@@ -15,6 +15,7 @@ export default function robots(): MetadataRoute.Robots {
         "/dang-tin",
         "/edit/",
         "/user",
+        "/hoa-don/",
       ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
