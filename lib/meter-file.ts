@@ -3,6 +3,7 @@
 import { parseNumber } from "./billing";
 
 export type MeterFileRow = {
+  building: string | null; // mã/tên nhà nếu file có cột "Nhà"
   code: string;
   newMeter: number | null;
   waterNew: number | null;
@@ -34,13 +35,14 @@ function cellCode(v: Cell): string {
 
 /** Tìm cột theo tiêu đề trong 15 dòng đầu. null nếu không thấy cột Phòng + Điện mới. */
 export function parseMeterSheet(data: Cell[][]): MeterFileRow[] | null {
-  let room = -1, meter = -1, water = -1, other = -1, note = -1, headerEnd = -1;
+  let room = -1, house = -1, meter = -1, water = -1, other = -1, note = -1, headerEnd = -1;
   for (let r = 0; r < Math.min(15, data.length); r++) {
     (data[r] ?? []).forEach((v, c) => {
       const t = norm(v);
       if (!t) return;
       let hit = true;
       if (room < 0 && ["phong", "so phong", "phong so", "ma phong"].includes(t)) room = c;
+      else if (house < 0 && ["nha", "ma nha", "co so", "toa nha", "ten nha"].includes(t)) house = c;
       else if (water < 0 && /\bmoi\b/.test(t) && t.includes("nuoc") && !t.includes("tien")) water = c;
       else if (meter < 0 && /\bmoi\b/.test(t) && !t.includes("tien") && !t.includes("nuoc")) meter = c;
       else if (note < 0 && t.includes("noi dung")) note = c;
@@ -52,11 +54,14 @@ export function parseMeterSheet(data: Cell[][]): MeterFileRow[] | null {
   if (room < 0 || meter < 0) return null;
 
   const out: MeterFileRow[] = [];
+  let lastHouse: string | null = null; // ô "Nhà" gộp/để trống → lấy theo dòng trên
   for (let r = headerEnd + 1; r < data.length; r++) {
     const row = data[r] ?? [];
+    if (house >= 0 && !isEmpty(row[house])) lastHouse = String(row[house]).trim();
     const code = cellCode(row[room]);
     if (!code) continue;
     out.push({
+      building: house >= 0 ? lastHouse : null,
       code,
       newMeter: isEmpty(row[meter]) ? null : parseNumber(row[meter]),
       waterNew: water >= 0 && !isEmpty(row[water]) ? parseNumber(row[water]) : null,
@@ -106,6 +111,7 @@ export async function readMeterFile(file: File): Promise<MeterFileRow[]> {
 }
 
 export type TemplateRoom = {
+  building?: string;
   code: string;
   tenantName: string;
   oldMeter: number;
@@ -118,16 +124,18 @@ export type TemplateRoom = {
 /** Dữ liệu file mẫu (dùng chung cho trình duyệt và script tạo file sẵn). */
 export function meterTemplateData(title: string, rooms: TemplateRoom[]) {
   const withWater = rooms.some((r) => r.waterMeter);
+  const withHouse = rooms.some((r) => r.building);
   const head = { fontWeight: "bold" as const, backgroundColor: "#FBE5D6", borderStyle: "thin" as const, align: "center" as const };
   const border = { borderStyle: "thin" as const };
   const input = { ...border, backgroundColor: "#FFF2CC" };
   const grey = { ...border, textColor: "#808080" };
-  const headers = ["Phòng", "Khách", "Điện cũ", "Điện mới", ...(withWater ? ["Nước cũ", "Nước mới"] : []), "Khác (đ)", "Nội dung khác"];
+  const headers = [...(withHouse ? ["Nhà"] : []), "Phòng", "Khách", "Điện cũ", "Điện mới", ...(withWater ? ["Nước cũ", "Nước mới"] : []), "Khác (đ)", "Nội dung khác"];
   const num = (v: number | null, style: object) => (v === null ? { value: undefined, ...style } : { value: v, type: Number, ...style });
   const data = [
     [{ value: title, fontWeight: "bold" as const, columnSpan: headers.length }, ...headers.slice(1).map(() => null)],
     headers.map((value) => ({ value, ...head })),
     ...rooms.map((r) => [
+      ...(withHouse ? [{ value: r.building, ...border, fontWeight: "bold" as const, textColor: "#C00000" }] : []),
       { value: r.code, ...border, fontWeight: "bold" as const },
       { value: r.tenantName || undefined, ...border },
       num(r.oldMeter, grey),
@@ -141,7 +149,7 @@ export function meterTemplateData(title: string, rooms: TemplateRoom[]) {
       { value: undefined, ...border },
     ]),
   ];
-  const columns = [10, 22, 11, 13, ...(withWater ? [11, 13] : []), 13, 26].map((width) => ({ width }));
+  const columns = [...(withHouse ? [8] : []), 10, 22, 11, 13, ...(withWater ? [11, 13] : []), 13, 26].map((width) => ({ width }));
   return { data, columns };
 }
 

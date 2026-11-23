@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import connectDB from "@/lib/mongodb";
 import Room from "@/models/room";
 import Bill from "@/models/bill";
+import Building from "@/models/building";
 import { billTotal, isMonthKey, parseNumber, type BillInput } from "@/lib/billing";
 import { guard } from "../_shared";
 
@@ -19,7 +20,8 @@ async function previousMeters(month: string, roomIds: string[]) {
   return new Map(rows.map((r: any) => [String(r._id), r]));
 }
 
-/** GET ?month=2026-12&building=NTL → các phòng + hóa đơn (nếu đã lập) + chỉ số cũ gợi ý. */
+/** GET ?month=2026-12&building=NTL → các phòng + hóa đơn (nếu đã lập) + chỉ số cũ gợi ý.
+ *  building=* → tất cả nhà (xếp theo thứ tự nhà rồi thứ tự phòng). */
 export async function GET(req: Request) {
   const denied = await guard();
   if (denied) return denied;
@@ -30,10 +32,16 @@ export async function GET(req: Request) {
   if (!building) return NextResponse.json({ error: "Chưa chọn nhà" }, { status: 400 });
 
   await connectDB();
-  const [rooms, bills] = await Promise.all([
-    Room.find({ building }).sort({ order: 1, code: 1 }).lean(),
-    Bill.find({ month, building }).lean(),
+  const all = building === "*";
+  const [rooms, bills, buildings] = await Promise.all([
+    Room.find(all ? {} : { building }).sort({ order: 1, code: 1 }).lean(),
+    Bill.find(all ? { month } : { month, building }).lean(),
+    all ? Building.find({}, { code: 1, order: 1 }).lean() : Promise.resolve([]),
   ]);
+  if (all) {
+    const bOrder = new Map(buildings.map((b: any) => [b.code, b.order ?? 0]));
+    rooms.sort((a: any, b: any) => (bOrder.get(a.building) ?? 99) - (bOrder.get(b.building) ?? 99));
+  }
   const prev = await previousMeters(month, rooms.map((r: any) => String(r._id)));
   const billByRoom = new Map(bills.map((b: any) => [b.roomId, b]));
   const rows = rooms

@@ -7,14 +7,15 @@ import MeterTab from "./MeterTab";
 import PaymentsTab from "./PaymentsTab";
 import RoomsTab from "./RoomsTab";
 import BuildingsTab from "./BuildingsTab";
+import BulkTab from "./BulkTab";
 
-type Tab = "meter" | "pay" | "rooms" | "buildings";
-const TABS: Tab[] = ["meter", "pay", "rooms", "buildings"];
+type Tab = "bulk" | "meter" | "pay" | "rooms" | "buildings";
+const TABS: Tab[] = ["bulk", "meter", "pay", "rooms", "buildings"];
 
 export default function BillingPage({ searchParams }: { searchParams: Promise<{ month?: string; tab?: string; b?: string }> }) {
   const sp = use(searchParams);
   const [month, setMonth] = useState(isMonthKey(sp.month) ? sp.month : defaultBillMonth());
-  const [tab, setTab] = useState<Tab>((TABS.includes(sp.tab as Tab) ? sp.tab : "meter") as Tab);
+  const [tab, setTab] = useState<Tab>((TABS.includes(sp.tab as Tab) ? sp.tab : "bulk") as Tab);
   const [buildings, setBuildings] = useState<Building[] | null>(null);
   const [building, setBuilding] = useState(sp.b ?? "");
   const [rows, setRows] = useState<MonthRow[]>([]);
@@ -57,7 +58,8 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
   const current = buildings?.find((b) => b.code === building);
   const billCount = rows.filter((r) => r.bill).length;
   const tabs: [Tab, string][] = [
-    ["meter", "⚡ Chốt điện & lập HĐ"],
+    ["bulk", "📥 1 file tất cả nhà"],
+    ["meter", "⚡ Chốt điện từng nhà"],
     ["pay", `💰 Thu tiền (${billCount})`],
     ["rooms", "🏠 Phòng"],
     ["buildings", "🏢 Nhà & tài khoản"],
@@ -74,7 +76,7 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
         </div>
 
         {/* Chọn nhà */}
-        {buildings && buildings.length > 0 && tab !== "buildings" && (
+        {buildings && buildings.length > 0 && tab !== "buildings" && tab !== "bulk" && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
             {buildings.map((b) => (
               <button
@@ -101,7 +103,7 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
           ))}
         </div>
 
-        {(tab === "meter" || tab === "pay") && building && (
+        {(tab === "meter" || tab === "pay" || tab === "bulk") && building && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
             <button onClick={() => setMonth(addMonths(month, -1))} style={btn("#1f1f1f")}>‹</button>
             <div style={{ fontSize: 20, fontWeight: 700, minWidth: 190, textAlign: "center" }}>
@@ -109,7 +111,7 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
             </div>
             <button onClick={() => setMonth(addMonths(month, 1))} style={btn("#1f1f1f")}>›</button>
             <span style={{ color: "#888", fontSize: 13 }}>
-              {current?.address} · tiền điện tháng {monthLabel(addMonths(month, -1))}
+              {tab === "bulk" ? "Tất cả nhà" : current?.address} · tiền điện tháng {monthLabel(addMonths(month, -1))}
             </span>
           </div>
         )}
@@ -123,6 +125,7 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
           </div>
         ) : (
           <>
+            {tab === "bulk" && buildings && <BulkTab key={month} month={month} buildings={buildings} />}
             {tab === "meter" && building && (
               <MeterTab key={`${building}-${month}`} month={month} building={building} rows={rows} loading={loading} onSaved={load} goPay={() => setTab("pay")} goRooms={() => setTab("rooms")} />
             )}

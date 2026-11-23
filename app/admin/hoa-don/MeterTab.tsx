@@ -155,6 +155,8 @@ export default function MeterTab({
       let filled = 0;
       const next = { ...entries };
       for (const f of fileRows) {
+        // File tất cả nhà: chỉ lấy dòng của nhà đang chọn
+        if (f.building && f.building.toLowerCase() !== building.toLowerCase()) continue;
         const id = byCode.get(f.code.toLowerCase());
         if (!id) { unknown.push(f.code); continue; }
         const e = { ...next[id] };
