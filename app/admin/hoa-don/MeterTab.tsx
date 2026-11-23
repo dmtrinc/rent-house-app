@@ -2,9 +2,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { addMonths, billTotal, electricUsage, money, monthLabel, parseNumber } from "../../../lib/billing";
 import { downloadMeterTemplate, readMeterFile } from "../../../lib/meter-file";
-import { api, btn, card, input, label, type MonthRow } from "./ui";
+import { api, btn, card, input, label, th, td, type MonthRow } from "./ui";
 
 type Entry = { oldMeter: string; newMeter: string; waterOld: string; waterNew: string; otherAmount: string; otherNote: string };
+
+const cellTd: React.CSSProperties = { ...td, padding: "6px 8px" };
+const cellInput: React.CSSProperties = { ...input, padding: "7px 8px", fontSize: 15 };
+
+/** Enter ở ô số mới → nhảy xuống ô số mới của phòng kế tiếp (nhập nhanh như Excel). */
+function nextOnEnter(ev: React.KeyboardEvent<HTMLInputElement>) {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  const all = Array.from(document.querySelectorAll<HTMLInputElement>('input[data-nav="meter"]'));
+  const next = all[all.indexOf(ev.currentTarget) + 1];
+  if (next) { next.focus(); next.select(); }
+}
 
 function todayVN(): string {
   return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
@@ -86,6 +98,7 @@ export default function MeterTab({
     [rows, entries]
   );
 
+  const anyWater = rows.some((r) => r.room.waterMeter);
   const toSave = computed.filter((c) => c.filled && !c.bad && c.changed);
   const missing = computed.filter((c) => !c.filled).length;
   const grand = computed.filter((c) => c.filled && !c.bad).reduce((s, c) => s + c.total, 0);
@@ -210,74 +223,93 @@ export default function MeterTab({
         {importMsg && <div style={{ width: "100%", fontSize: 14, color: importMsg.ok ? "#4ade80" : "#f87171" }}>{importMsg.text}</div>}
       </div>
 
-      <div className="meter-grid">
-        {computed.map(({ r, e, wm, kwh, m3, total, bad, badE, badW, filled, changed }) => (
-          <div key={r.room._id} style={{ ...card, borderColor: bad ? "#b91c1c" : r.bill && !changed ? "#14532d" : "#222" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, gap: 8 }}>
-              <div>
-                <span style={{ fontSize: 20, fontWeight: 800, color: "#ff9800" }}>{r.room.code}</span>
-                {r.room.tenantName && <span style={{ color: "#888", marginLeft: 8, fontSize: 13 }}>{r.room.tenantName}</span>}
-              </div>
-              {r.bill && !changed ? (
-                <span style={{ fontSize: 12, color: "#4ade80" }}>✓ Đã lập</span>
-              ) : r.bill ? (
-                <span style={{ fontSize: 12, color: "#fbbf24" }}>Đã sửa — chưa lưu</span>
-              ) : null}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 8 }}>
-              <div>
-                <span style={label}>Điện cũ</span>
-                <input inputMode="numeric" value={e?.oldMeter ?? ""} onChange={(ev) => set(r.room._id, "oldMeter", ev.target.value)} style={{ ...input, color: "#aaa" }} />
-              </div>
-              <div>
-                <span style={label}>Điện mới ⚡</span>
-                <input
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder="Nhập số"
-                  value={e?.newMeter ?? ""}
-                  onChange={(ev) => set(r.room._id, "newMeter", ev.target.value)}
-                  style={{ ...input, fontSize: 18, fontWeight: 700, borderColor: badE ? "#b91c1c" : "#ff9800" }}
-                />
-              </div>
-              {wm && (
-                <>
-                  <div>
-                    <span style={label}>Nước cũ</span>
-                    <input inputMode="numeric" value={e?.waterOld ?? ""} onChange={(ev) => set(r.room._id, "waterOld", ev.target.value)} style={{ ...input, color: "#aaa" }} />
-                  </div>
-                  <div>
-                    <span style={label}>Nước mới 💧</span>
-                    <input
-                      inputMode="numeric"
-                      autoComplete="off"
-                      placeholder="Nhập số"
-                      value={e?.waterNew ?? ""}
-                      onChange={(ev) => set(r.room._id, "waterNew", ev.target.value)}
-                      style={{ ...input, fontSize: 18, fontWeight: 700, borderColor: badW ? "#b91c1c" : "#3b82f6" }}
-                    />
-                  </div>
-                </>
-              )}
-              <div>
-                <span style={label}>Khác (đ)</span>
-                <input inputMode="numeric" placeholder="0" value={e?.otherAmount ?? ""} onChange={(ev) => set(r.room._id, "otherAmount", ev.target.value)} style={input} />
-              </div>
-              <div>
-                <span style={label}>Nội dung khác</span>
-                <input placeholder="VD: Tủ lạnh" value={e?.otherNote ?? ""} onChange={(ev) => set(r.room._id, "otherNote", ev.target.value)} style={input} />
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 14 }}>
-              <span style={{ color: bad ? "#f87171" : "#aaa" }}>
-                {badE ? "Số điện mới nhỏ hơn số cũ!" : badW ? "Số nước mới nhỏ hơn số cũ!" : filled
-                  ? `${kwh} kWh = ${money(kwh * r.room.electricPrice)} đ` + (wm ? ` · ${m3} m³` : "")
-                  : "Chưa nhập"}
-              </span>
-              {filled && !bad && <b>{money(total)} đ</b>}
-            </div>
-          </div>
-        ))}
+      <div style={{ overflowX: "auto", border: "1px solid #222", borderRadius: 12 }}>
+        <table className="meter-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr>
+              <th style={th}>#</th>
+              <th style={th}>Phòng</th>
+              <th style={th}>Điện cũ</th>
+              <th style={th}>Điện mới ⚡</th>
+              {anyWater && <th style={th}>Nước cũ</th>}
+              {anyWater && <th style={th}>Nước mới 💧</th>}
+              <th style={{ ...th, textAlign: "right" }}>Tiêu thụ</th>
+              <th style={th}>Khác (đ)</th>
+              <th style={th}>Nội dung khác</th>
+              <th style={{ ...th, textAlign: "right" }}>Tổng tiền</th>
+              <th style={th}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {computed.map(({ r, e, wm, kwh, m3, total, bad, badE, badW, filled, changed }, i) => (
+              <tr key={r.room._id} style={{ background: bad ? "#2a0f0f" : undefined }}>
+                <td style={{ ...cellTd, color: "#666" }}>{i + 1}</td>
+                <td style={{ ...cellTd, whiteSpace: "nowrap" }}>
+                  <b style={{ fontSize: 16, color: "#ff9800" }}>{r.room.code}</b>
+                  {r.room.tenantName && <div style={{ color: "#888", fontSize: 11, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{r.room.tenantName}</div>}
+                </td>
+                <td style={cellTd}>
+                  <input inputMode="numeric" value={e?.oldMeter ?? ""} onChange={(ev) => set(r.room._id, "oldMeter", ev.target.value)} style={{ ...cellInput, width: 90, color: "#aaa" }} />
+                </td>
+                <td style={cellTd}>
+                  <input
+                    data-nav="meter"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Nhập số"
+                    value={e?.newMeter ?? ""}
+                    onChange={(ev) => set(r.room._id, "newMeter", ev.target.value)}
+                    onKeyDown={nextOnEnter}
+                    style={{ ...cellInput, width: 110, fontWeight: 700, fontSize: 16, borderColor: badE ? "#b91c1c" : "#ff9800" }}
+                  />
+                </td>
+                {anyWater && (
+                  <td style={cellTd}>
+                    {wm && <input inputMode="numeric" value={e?.waterOld ?? ""} onChange={(ev) => set(r.room._id, "waterOld", ev.target.value)} style={{ ...cellInput, width: 80, color: "#aaa" }} />}
+                  </td>
+                )}
+                {anyWater && (
+                  <td style={cellTd}>
+                    {wm && (
+                      <input
+                        data-nav="meter"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="Nhập số"
+                        value={e?.waterNew ?? ""}
+                        onChange={(ev) => set(r.room._id, "waterNew", ev.target.value)}
+                        onKeyDown={nextOnEnter}
+                        style={{ ...cellInput, width: 95, fontWeight: 700, fontSize: 16, borderColor: badW ? "#b91c1c" : "#3b82f6" }}
+                      />
+                    )}
+                  </td>
+                )}
+                <td style={{ ...cellTd, textAlign: "right", whiteSpace: "nowrap", color: bad ? "#f87171" : "#aaa", fontSize: 13 }}>
+                  {badE ? "Mới < cũ!" : badW ? "Nước mới < cũ!" : e?.newMeter.trim() ? `${kwh} kWh` : "—"}
+                  {wm && !badW && e?.waterNew.trim() && <div>{m3} m³</div>}
+                </td>
+                <td style={cellTd}>
+                  <input inputMode="numeric" placeholder="0" value={e?.otherAmount ?? ""} onChange={(ev) => set(r.room._id, "otherAmount", ev.target.value)} style={{ ...cellInput, width: 100 }} />
+                </td>
+                <td style={cellTd}>
+                  <input placeholder="VD: Tủ lạnh" value={e?.otherNote ?? ""} onChange={(ev) => set(r.room._id, "otherNote", ev.target.value)} style={{ ...cellInput, width: 150 }} />
+                </td>
+                <td style={{ ...cellTd, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{filled && !bad ? `${money(total)} đ` : ""}</td>
+                <td style={{ ...cellTd, fontSize: 12, whiteSpace: "nowrap" }}>
+                  {r.bill && !changed ? (
+                    <span style={{ color: "#4ade80" }}>✓ Đã lập</span>
+                  ) : r.bill ? (
+                    <span style={{ color: "#fbbf24" }}>Đã sửa</span>
+                  ) : filled && !bad ? (
+                    <span style={{ color: "#60a5fa" }}>Mới</span>
+                  ) : (
+                    <span style={{ color: "#555" }}>Chưa nhập</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div style={{ position: "sticky", bottom: 0, background: "#000", padding: "12px 0", borderTop: "1px solid #222", marginTop: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -301,8 +333,7 @@ export default function MeterTab({
         )}
       </div>
 
-      <style>{`.meter-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
-        @media(max-width:400px){.meter-grid{grid-template-columns:1fr}}`}</style>
+      <style>{`.meter-table tbody tr:hover{background:#151515}`}</style>
     </div>
   );
 }
