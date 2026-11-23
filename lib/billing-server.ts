@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { ObjectId } from "mongodb";
 import QRCode from "qrcode";
 import connectDB from "./mongodb";
-import { DEFAULT_SETTINGS, vietQrPayload, type BillingSettings } from "./billing";
+import BuildingModel from "../models/building";
+import { DEFAULT_SETTINGS, vietQrPayload, type BillingSettings, type Building } from "./billing";
 
 /** Kiểm tra quyền admin bằng DB (không tin riêng cookie user_role). */
 export async function isAdmin(): Promise<boolean> {
@@ -16,31 +17,11 @@ export async function isAdmin(): Promise<boolean> {
   return user?.role === "admin";
 }
 
-const SETTINGS_ID = "billing";
-
-export async function getBillingSettings(): Promise<BillingSettings> {
-  const conn = await connectDB();
-  const doc = await conn.connection.db?.collection("system_config").findOne({ _id: SETTINGS_ID as any });
-  const out = { ...DEFAULT_SETTINGS };
-  if (doc) {
-    for (const k of Object.keys(DEFAULT_SETTINGS) as (keyof BillingSettings)[]) {
-      if (doc[k] !== undefined && doc[k] !== null) (out as any)[k] = doc[k];
-    }
-  }
-  return out;
-}
-
-export async function saveBillingSettings(input: Partial<BillingSettings>): Promise<BillingSettings> {
-  const clean: Partial<BillingSettings> = {};
-  for (const k of Object.keys(DEFAULT_SETTINGS) as (keyof BillingSettings)[]) {
-    if (input[k] === undefined) continue;
-    (clean as any)[k] = k === "dueDay" ? Math.min(28, Math.max(1, Number(input[k]) || 5)) : String(input[k]).trim();
-  }
-  const conn = await connectDB();
-  await conn.connection.db
-    ?.collection("system_config")
-    .updateOne({ _id: SETTINGS_ID as any }, { $set: { ...clean, updatedAt: new Date() } }, { upsert: true });
-  return getBillingSettings();
+/** Thông tin in phiếu của 1 nhà (địa chỉ, tài khoản...). Không có thì dùng mặc định trống. */
+export async function getBuildingSettings(code: string): Promise<BillingSettings & Partial<Building>> {
+  await connectDB();
+  const b = await BuildingModel.findOne({ code }).lean<Building>();
+  return { ...DEFAULT_SETTINGS, ...(b ?? {}) };
 }
 
 /** Mã QR chuyển khoản dạng SVG (đã điền sẵn số tiền + nội dung). null nếu chưa cài STK. */

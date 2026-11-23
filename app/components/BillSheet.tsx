@@ -75,6 +75,18 @@ export default function BillSheet({
             <td style={cell}>Số điện tháng này:</td>
             <td style={{ ...num, color: "#e00000" }}>{bill.newMeter}</td>
           </tr>
+          {bill.waterMeter && (
+            <>
+              <tr>
+                <td style={cell}>Số nước tháng trước:</td>
+                <td style={{ ...num, color: "#0050c0" }}>{bill.waterOld}</td>
+              </tr>
+              <tr>
+                <td style={cell}>Số nước tháng này:</td>
+                <td style={{ ...num, color: "#0050c0" }}>{bill.waterNew}</td>
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
 

@@ -7,6 +7,7 @@ const billSchema = new Schema(
     month: { type: String, required: true },   // "2026-12" = hóa đơn tháng 12/2026
     roomId: { type: String, required: true },
     roomCode: { type: String, required: true },
+    building: { type: String, required: true },
 
     rent: { type: Number, default: 0 },
     electricPrice: { type: Number, default: 0 },
@@ -14,6 +15,9 @@ const billSchema = new Schema(
     newMeter: { type: Number, default: 0 },
     waterPrice: { type: Number, default: 0 },
     people: { type: Number, default: 0 },
+    waterMeter: { type: Boolean, default: false },
+    waterOld: { type: Number, default: 0 },
+    waterNew: { type: Number, default: 0 },
     serviceFee: { type: Number, default: 0 },
     parkingPrice: { type: Number, default: 0 },
     vehicles: { type: Number, default: 0 },
@@ -31,6 +35,7 @@ const billSchema = new Schema(
 
 billSchema.index({ month: 1, roomId: 1 }, { unique: true });
 billSchema.index({ roomId: 1, month: -1 });
+billSchema.index({ month: 1, building: 1 });
 
 const Bill = models.Bill || mongoose.model("Bill", billSchema);
 export default Bill;

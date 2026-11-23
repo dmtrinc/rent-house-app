@@ -57,8 +57,11 @@ export type BillInput = {
   electricPrice: number;  // đ/kWh
   oldMeter: number;
   newMeter: number;
-  waterPrice: number;     // đ/người
+  waterPrice: number;     // đ/người, hoặc đ/m³ nếu phòng có đồng hồ nước
   people: number;
+  waterMeter?: boolean;   // true = tính nước theo đồng hồ (m³)
+  waterOld?: number;
+  waterNew?: number;
   serviceFee: number;     // phí quản lý / dịch vụ (đ/phòng)
   parkingPrice: number;   // đ/xe
   vehicles: number;
@@ -74,10 +77,11 @@ export function electricUsage(oldMeter: number, newMeter: number): number {
 
 export function billLines(b: BillInput): BillLine[] {
   const kwh = electricUsage(b.oldMeter, b.newMeter);
+  const water = b.waterMeter ? electricUsage(b.waterOld ?? 0, b.waterNew ?? 0) : b.people;
   return [
     { label: "Tiền phòng", price: b.rent, qty: 1, amount: b.rent },
     { label: "Điện", price: b.electricPrice, qty: kwh, amount: kwh * b.electricPrice },
-    { label: "Nước", price: b.waterPrice, qty: b.people, amount: b.waterPrice * b.people },
+    { label: b.waterMeter ? "Nước (m³)" : "Nước", price: b.waterPrice, qty: water, amount: b.waterPrice * water },
     { label: "Phí quản lý", price: b.serviceFee, qty: 1, amount: b.serviceFee },
     { label: "Chỗ để xe", price: b.parkingPrice, qty: b.vehicles, amount: b.parkingPrice * b.vehicles },
     {
@@ -166,7 +170,7 @@ export function vietQrPayload(opts: { bin: string; account: string; amount?: num
   return s + crc16(s);
 }
 
-/* ─── Cài đặt phiếu thu ──────────────────────────────────────────────────── */
+/* ─── Nhà (cơ sở) — mỗi nhà có địa chỉ + tài khoản nhận tiền riêng ──────── */
 
 export type BillingSettings = {
   address: string;       // ĐỊA CHỈ CĂN HỘ
@@ -187,3 +191,17 @@ export const DEFAULT_SETTINGS: BillingSettings = {
   transferNote: "Ghi nội dung chuyển tiền: Tên phòng. (Vui lòng chụp lại hình)",
   city: "Tp.Hồ Chí Minh",
 };
+
+export type Building = BillingSettings & {
+  _id?: string;
+  code: string;   // mã ngắn: "NTL", "XVNT"
+  name: string;   // tên hiển thị: "Nơ Trang Long"
+  order: number;
+};
+
+export const BUILDING_FIELDS = ["code", "name", "order", ...(Object.keys(DEFAULT_SETTINGS) as (keyof BillingSettings)[])] as const;
+
+/** Nội dung chuyển khoản ghi trong mã QR. */
+export function qrNote(buildingCode: string, roomCode: string, month: MonthKey): string {
+  return `${buildingCode} ${roomCode} T${monthLabel(month).replace("/", " ")}`;
+}

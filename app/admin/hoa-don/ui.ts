@@ -27,6 +27,7 @@ export const label: React.CSSProperties = { fontSize: 12, color: "#888", display
 
 export type Room = {
   _id: string;
+  building: string;
   code: string;
   tenantName: string;
   phone: string;
@@ -36,6 +37,8 @@ export type Room = {
   deposit: number;
   electricPrice: number;
   waterPrice: number;
+  waterMeter: boolean;
+  waterMeterStart: number;
   parkingPrice: number;
   serviceFee: number;
   contractStart: string | null;
@@ -51,12 +54,16 @@ export type Bill = {
   month: string;
   roomId: string;
   roomCode: string;
+  building: string;
   rent: number;
   electricPrice: number;
   oldMeter: number;
   newMeter: number;
   waterPrice: number;
   people: number;
+  waterMeter: boolean;
+  waterOld: number;
+  waterNew: number;
   serviceFee: number;
   parkingPrice: number;
   vehicles: number;
@@ -69,7 +76,7 @@ export type Bill = {
   token: string;
 };
 
-export type MonthRow = { room: Room; bill: Bill | null; prevMeter: number };
+export type MonthRow = { room: Room; bill: Bill | null; prevMeter: number; prevWater: number };
 
 export async function api<T = any>(url: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const res = await fetch(url, {

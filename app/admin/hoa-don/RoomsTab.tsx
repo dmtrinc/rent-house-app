@@ -8,7 +8,7 @@ type Form = Record<string, string | boolean>;
 const EMPTY: Form = {
   code: "", tenantName: "", phone: "", people: "1", vehicles: "1", rent: "", deposit: "",
   electricPrice: "4,000", waterPrice: "100,000", parkingPrice: "100,000", serviceFee: "200,000",
-  contractStart: "", contractEnd: "", meterStart: "", note: "", active: true,
+  contractStart: "", contractEnd: "", meterStart: "", waterMeterStart: "", note: "", active: true, waterMeter: false,
 };
 
 const FIELDS: [string, string, "text" | "money" | "num" | "date"][] = [
@@ -20,10 +20,11 @@ const FIELDS: [string, string, "text" | "money" | "num" | "date"][] = [
   ["rent", "Giá thuê (đ)", "money"],
   ["deposit", "Tiền cọc (đ)", "money"],
   ["electricPrice", "Giá điện (đ/kWh)", "money"],
-  ["waterPrice", "Giá nước (đ/người)", "money"],
+  ["waterPrice", "Giá nước (đ/người hoặc đ/m³)", "money"],
   ["parkingPrice", "Giá giữ xe (đ/xe)", "money"],
   ["serviceFee", "Phí quản lý (đ/phòng)", "money"],
   ["meterStart", "Chỉ số điện gốc", "num"],
+  ["waterMeterStart", "Chỉ số nước gốc (nếu có ĐH nước)", "num"],
   ["contractStart", "HĐ bắt đầu", "date"],
   ["contractEnd", "HĐ kết thúc", "date"],
 ];
@@ -36,6 +37,7 @@ function toForm(r: Room): Form {
   }
   f.note = r.note ?? "";
   f.active = r.active;
+  f.waterMeter = !!r.waterMeter;
   return f;
 }
 
@@ -80,7 +82,7 @@ function parsePaste(text: string): Record<string, unknown>[] {
   return out;
 }
 
-export default function RoomsTab({ onChanged }: { onChanged: () => Promise<void> }) {
+export default function RoomsTab({ building, onChanged }: { building: string; onChanged: () => Promise<void> }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [editing, setEditing] = useState<Room | "new" | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
@@ -89,8 +91,9 @@ export default function RoomsTab({ onChanged }: { onChanged: () => Promise<void>
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = async () => setRooms(await api<Room[]>("/api/admin/billing/rooms"));
-  useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
+  const load = async () => setRooms(await api<Room[]>(`/api/admin/billing/rooms?building=${encodeURIComponent(building)}`));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load().catch((e) => setErr(e.message)); }, [building]);
 
   const open = (r: Room | "new") => {
     setErr("");
@@ -102,7 +105,7 @@ export default function RoomsTab({ onChanged }: { onChanged: () => Promise<void>
     setBusy(true);
     setErr("");
     try {
-      const body: Record<string, unknown> = { note: form.note, active: form.active };
+      const body: Record<string, unknown> = { building, note: form.note, active: form.active, waterMeter: form.waterMeter };
       for (const [k, , t] of FIELDS) body[k] = t === "money" || t === "num" ? parseNumber(form[k]) : form[k] || (t === "date" ? null : "");
       if (editing === "new") await api("/api/admin/billing/rooms", { method: "POST", json: body });
       else await api(`/api/admin/billing/rooms/${(editing as Room)._id}`, { method: "PATCH", json: body });
@@ -133,7 +136,7 @@ export default function RoomsTab({ onChanged }: { onChanged: () => Promise<void>
     setBusy(true);
     setErr("");
     try {
-      const res = await api<{ created: number; updated: number }>("/api/admin/billing/rooms", { method: "POST", json: { rooms: preview } });
+      const res = await api<{ created: number; updated: number }>("/api/admin/billing/rooms", { method: "POST", json: { building, rooms: preview } });
       alert(`Đã thêm ${res.created} phòng, cập nhật ${res.updated} phòng.`);
       setShowImport(false);
       setPaste("");
@@ -217,7 +220,7 @@ export default function RoomsTab({ onChanged }: { onChanged: () => Promise<void>
                   <td style={td}>{r.people} / {r.vehicles}</td>
                   <td style={td}>{money(r.rent)}</td>
                   <td style={td}>{money(r.electricPrice)}</td>
-                  <td style={td}>{money(r.waterPrice)}</td>
+                  <td style={td}>{money(r.waterPrice)}{r.waterMeter && <span style={{ color: "#60a5fa", fontSize: 11 }}> /m³</span>}</td>
                   <td style={td}>{money(r.parkingPrice)}</td>
                   <td style={td}>{money(r.serviceFee)}</td>
                   <td style={{ ...td, whiteSpace: "nowrap", color: expired ? "#f87171" : "#aaa" }}>
@@ -257,6 +260,10 @@ export default function RoomsTab({ onChanged }: { onChanged: () => Promise<void>
             <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, cursor: "pointer" }}>
               <input type="checkbox" checked={!!form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} />
               Đang cho thuê (bỏ chọn = phòng trống, không lập hóa đơn)
+            </label>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!form.waterMeter} onChange={(e) => setForm((f) => ({ ...f, waterMeter: e.target.checked }))} />
+              Tính nước theo đồng hồ (m³) — giá nước là đ/m³, mỗi tháng nhập thêm số nước
             </label>
             {editing !== "new" && (
               <p style={{ color: "#888", fontSize: 12 }}>

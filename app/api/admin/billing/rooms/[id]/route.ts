@@ -15,11 +15,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
   try {
     const data = cleanRoom(await req.json());
     await connectDB();
-    if (data.code && (await Room.exists({ code: data.code, _id: { $ne: id } })))
-      return NextResponse.json({ error: `Phòng ${data.code} đã có` }, { status: 400 });
+    const current: any = await Room.findById(id).lean();
+    if (!current) return NextResponse.json({ error: "Không tìm thấy phòng" }, { status: 404 });
+    const building = (data.building as string) || current.building;
+    const code = (data.code as string) || current.code;
+    if (await Room.exists({ building, code, _id: { $ne: id } }))
+      return NextResponse.json({ error: `Phòng ${code} đã có trong nhà ${building}` }, { status: 400 });
     const room = await Room.findByIdAndUpdate(id, { $set: data }, { returnDocument: "after" });
-    if (!room) return NextResponse.json({ error: "Không tìm thấy phòng" }, { status: 404 });
-    if (data.code) await Bill.updateMany({ roomId: id }, { $set: { roomCode: data.code } });
+    await Bill.updateMany({ roomId: id }, { $set: { roomCode: code, building } });
     return NextResponse.json(room);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

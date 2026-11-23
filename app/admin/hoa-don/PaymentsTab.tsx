@@ -9,19 +9,24 @@ function tenantLink(b: Bill) {
 
 function zaloText(b: Bill) {
   const kwh = electricUsage(b.oldMeter, b.newMeter);
+  const m3 = electricUsage(b.waterOld, b.waterNew);
+  const water = b.waterMeter
+    ? `nước ${m3}m³ ${b.waterOld}→${b.waterNew} = ${money(m3 * b.waterPrice)}đ`
+    : `nước ${money(b.people * b.waterPrice)}đ`;
   return (
     `Phòng ${b.roomCode} - Tiền nhà tháng ${monthLabel(b.month)}: ${money(b.total)}đ\n` +
     `(Phòng ${money(b.rent)}đ, điện ${kwh}kWh ${b.oldMeter}→${b.newMeter} = ${money(kwh * b.electricPrice)}đ, ` +
-    `nước ${money(b.people * b.waterPrice)}đ, quản lý ${money(b.serviceFee)}đ, xe ${money(b.vehicles * b.parkingPrice)}đ` +
+    `${water}, quản lý ${money(b.serviceFee)}đ, xe ${money(b.vehicles * b.parkingPrice)}đ` +
     (b.otherAmount ? `, ${b.otherNote || "khác"} ${money(b.otherAmount)}đ` : "") +
     `)\nXem phiếu thu & mã QR chuyển khoản: ${tenantLink(b)}`
   );
 }
 
 export default function PaymentsTab({
-  month, rows, loading, reload,
+  month, building, rows, loading, reload,
 }: {
   month: string;
+  building: string;
   rows: MonthRow[];
   loading: boolean;
   reload: () => Promise<void>;
@@ -95,7 +100,7 @@ export default function PaymentsTab({
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <a href={`/admin/hoa-don/in?month=${month}`} target="_blank" style={{ ...btn("#ff9800", "#000"), textDecoration: "none" }}>
+        <a href={`/admin/hoa-don/in?month=${month}&b=${encodeURIComponent(building)}`} target="_blank" style={{ ...btn("#ff9800", "#000"), textDecoration: "none" }}>
           🖨️ Xem & in tất cả phiếu
         </a>
         <button
@@ -160,7 +165,7 @@ export default function PaymentsTab({
                   </td>
                   <td style={td}>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <a href={`/admin/hoa-don/in?month=${month}&room=${encodeURIComponent(b.roomCode)}`} target="_blank" style={{ ...smallBtn, textDecoration: "none" }}>
+                      <a href={`/admin/hoa-don/in?month=${month}&b=${encodeURIComponent(building)}&room=${encodeURIComponent(b.roomCode)}`} target="_blank" style={{ ...smallBtn, textDecoration: "none" }}>
                         👁 Xem/In
                       </a>
                       <button onClick={() => copy(b._id + "z", zaloText(b))} style={smallBtn}>

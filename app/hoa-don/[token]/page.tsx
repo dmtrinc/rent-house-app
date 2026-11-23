@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import connectDB from "../../../lib/mongodb";
 import Bill from "../../../models/bill";
-import { billQrSvg, getBillingSettings } from "../../../lib/billing-server";
-import { money, monthLabel } from "../../../lib/billing";
+import { billQrSvg, getBuildingSettings } from "../../../lib/billing-server";
+import { money, qrNote } from "../../../lib/billing";
 import BillSheet, { billSheetCss } from "../../components/BillSheet";
 import PrintButton from "../../components/PrintButton";
 
@@ -21,8 +21,8 @@ export default async function TenantBillPage({ params }: { params: Promise<{ tok
   const bill: any = await Bill.findOne({ token }).lean();
   if (!bill) notFound();
 
-  const settings = await getBillingSettings();
-  const qr = await billQrSvg(settings, bill.total, `Phong ${bill.roomCode} T${monthLabel(bill.month).replace("/", " ")}`);
+  const settings = await getBuildingSettings(bill.building);
+  const qr = await billQrSvg(settings, bill.total, qrNote(bill.building, bill.roomCode, bill.month));
   const paid = bill.paidAmount >= bill.total && bill.total > 0;
 
   return (
