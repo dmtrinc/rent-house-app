@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { electricUsage, money, monthLabel, parseNumber } from "../../../lib/billing";
 import { api, btn, card, input, smallBtn, td, th, type Bill, type MonthRow } from "./ui";
+import { applyBills, invalidateAfter, removeBill } from "./store";
 
 function tenantLink(b: Bill) {
   return `${window.location.origin}/hoa-don/${b.token}`;
@@ -23,13 +24,12 @@ function zaloText(b: Bill) {
 }
 
 export default function PaymentsTab({
-  month, building, rows, loading, reload,
+  month, building, rows, ready,
 }: {
   month: string;
   building: string;
   rows: MonthRow[];
-  loading: boolean;
-  reload: () => Promise<void>;
+  ready: boolean;
 }) {
   const bills = rows.filter((r) => r.bill).map((r) => r.bill!) as Bill[];
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -39,9 +39,9 @@ export default function PaymentsTab({
   const patch = async (b: Bill, json: object) => {
     setBusy(b._id);
     try {
-      await api(`/api/admin/billing/bills/${b._id}`, { method: "PATCH", json });
+      const updated = await api<Bill>(`/api/admin/billing/bills/${b._id}`, { method: "PATCH", json });
       setDraft((d) => { const n = { ...d }; delete n[b._id]; return n; });
-      await reload();
+      applyBills(building, month, [updated]);
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -54,7 +54,8 @@ export default function PaymentsTab({
     setBusy(b._id);
     try {
       await api(`/api/admin/billing/bills/${b._id}`, { method: "DELETE" });
-      await reload();
+      removeBill(building, month, b._id);
+      invalidateAfter(building, month);
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -72,7 +73,7 @@ export default function PaymentsTab({
     }
   };
 
-  if (loading && bills.length === 0) return <p style={{ color: "#888" }}>Đang tải...</p>;
+  if (!ready) return <p style={{ color: "#888" }}>Đang tải...</p>;
   if (bills.length === 0)
     return <div style={card}>Chưa lập hóa đơn tháng {monthLabel(month)}. Vào tab “Chốt điện & lập HĐ” để nhập số điện.</div>;
 

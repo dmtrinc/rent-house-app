@@ -1,130 +1,106 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { addMonths, billTotal, electricUsage, money, monthLabel, parseNumber } from "../../../lib/billing";
-import { downloadMeterTemplate, readMeterFile } from "../../../lib/meter-file";
-import { api, btn, card, input, label, th, td, type MonthRow } from "./ui";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { addMonths, money, monthLabel, parseNumber } from "../../../lib/billing";
+import { readMeterFile, type MeterFileRow } from "../../../lib/meter-file";
+import { downloadAllHousesTemplate, type Draft } from "./BulkTab";
+import { api, btn, card, input, label, todayVN, type Bill, type MonthRow } from "./ui";
+import { applyBills, invalidateAfter } from "./store";
+import { computeRow, entryFromRow, loadDraft, saveDraft, shouldSave, type Edits, type Entry, type Field } from "./meter/logic";
+import MeterRow, { meterTableCss } from "./meter/MeterRow";
 
-type Entry = { oldMeter: string; newMeter: string; waterOld: string; waterNew: string; otherAmount: string; otherNote: string };
+type Msg = { ok: boolean; text: string; errors?: string[] };
 
-const cellTd: React.CSSProperties = { ...td, padding: "6px 8px" };
-const cellInput: React.CSSProperties = { ...input, padding: "7px 8px", fontSize: 15 };
-
-/** Enter ở ô số mới → nhảy xuống ô số mới của phòng kế tiếp (nhập nhanh như Excel). */
-function nextOnEnter(ev: React.KeyboardEvent<HTMLInputElement>) {
-  if (ev.key !== "Enter") return;
-  ev.preventDefault();
-  const all = Array.from(document.querySelectorAll<HTMLInputElement>('input[data-nav="meter"]'));
-  const next = all[all.indexOf(ev.currentTarget) + 1];
-  if (next) { next.focus(); next.select(); }
-}
-
-function todayVN(): string {
-  return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
-}
-
+/* Tab "Chốt điện từng nhà".
+ * - Số đang nhập = dữ liệu máy chủ (base) + các dòng đã sửa (edits). Không cần đồng bộ bằng useEffect.
+ * - Bấm Lưu chạy ngầm: vẫn gõ tiếp được; dòng nào sửa thêm trong lúc lưu sẽ giữ lại để lưu lần sau.
+ * - Nháp tự lưu trên máy (localStorage) → đổi tab / đổi nhà / F5 không mất số đã gõ.
+ * - Ctrl+S (⌘S) = Lưu & lập hóa đơn. */
 export default function MeterTab({
-  month, building, rows, loading, onSaved, goPay, goRooms,
+  month, building, rows, ready, goPay, goRooms, onAllFile,
 }: {
   month: string;
   building: string;
   rows: MonthRow[];
-  loading: boolean;
-  onSaved: () => Promise<void>;
+  ready: boolean;
   goPay: () => void;
   goRooms: () => void;
+  /** File có cột "Nhà" (file tất cả nhà) → chuyển sang xem trước & lập hóa đơn cho mọi nhà cùng lúc */
+  onAllFile: (rows: MeterFileRow[], name: string) => void;
 }) {
-  const [entries, setEntries] = useState<Record<string, Entry>>({});
-  const [readingDate, setReadingDate] = useState(todayVN());
+  const [draft] = useState(() => loadDraft(building, month));
+  const [edits, setEdits] = useState<Edits>(() => draft?.edits ?? {});
+  const [dateEdit, setDateEdit] = useState<string | null>(() => draft?.readingDate ?? null);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string; errors?: string[] } | null>(null);
+  const [msg, setMsg] = useState<Msg | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [importMsg, setImportMsg] = useState<Msg | null>(null);
 
-  // Điền sẵn: phòng đã có hóa đơn → lấy số đã lập; chưa có → số cũ = số mới của tháng trước
-  useEffect(() => {
-    const next: Record<string, Entry> = {};
-    for (const r of rows) {
-      const b = r.bill;
-      next[r.room._id] = b
-        ? {
-            oldMeter: String(b.oldMeter), newMeter: String(b.newMeter),
-            waterOld: String(b.waterMeter ? b.waterOld : r.prevWater ?? 0), waterNew: b.waterMeter ? String(b.waterNew) : "",
-            otherAmount: b.otherAmount ? money(b.otherAmount) : "", otherNote: b.otherNote,
-          }
-        : { oldMeter: String(r.prevMeter ?? 0), newMeter: "", waterOld: String(r.prevWater ?? 0), waterNew: "", otherAmount: "", otherNote: "" };
-    }
-    setEntries(next);
-    const withDate = rows.find((r) => r.bill?.readingDate);
-    if (withDate?.bill?.readingDate) setReadingDate(withDate.bill.readingDate.slice(0, 10));
+  // Giá trị gốc từng dòng theo dữ liệu máy chủ — chỉ tính lại khi dữ liệu máy chủ đổi
+  const base = useMemo(() => {
+    const m: Record<string, Entry> = {};
+    for (const r of rows) m[r.room._id] = entryFromRow(r);
+    return m;
   }, [rows]);
 
-  const set = (id: string, k: keyof Entry, v: string) =>
-    setEntries((e) => ({ ...e, [id]: { ...e[id], [k]: v } }));
+  const savedDate = useMemo(() => rows.find((r) => r.bill?.readingDate)?.bill?.readingDate?.slice(0, 10), [rows]);
+  const readingDate = dateEdit ?? savedDate ?? todayVN();
+  const anyWater = useMemo(() => rows.some((r) => r.room.waterMeter), [rows]);
+  const dirtyCount = Object.keys(edits).length;
 
-  const computed = useMemo(
-    () =>
-      rows.map((r) => {
-        const e = entries[r.room._id];
-        const wm = !!r.room.waterMeter;
-        const filled = !!e && e.newMeter.trim() !== "" && (!wm || e.waterNew.trim() !== "");
-        const oldMeter = parseNumber(e?.oldMeter);
-        const newMeter = parseNumber(e?.newMeter);
-        const waterOld = wm ? parseNumber(e?.waterOld) : 0;
-        const waterNew = wm ? parseNumber(e?.waterNew) : 0;
-        const kwh = electricUsage(oldMeter, newMeter);
-        const m3 = electricUsage(waterOld, waterNew);
-        const total = billTotal({
-          ...r.room,
-          oldMeter,
-          newMeter,
-          waterOld,
-          waterNew,
-          otherAmount: parseNumber(e?.otherAmount),
-          otherNote: e?.otherNote ?? "",
-        });
-        const badE = !!e && e.newMeter.trim() !== "" && newMeter < oldMeter;
-        const badW = wm && !!e && e.waterNew.trim() !== "" && waterNew < waterOld;
-        const bad = badE || badW;
-        const changed =
-          !r.bill ||
-          r.bill.total !== total || // giá phòng đã sửa sau khi lập
-          r.bill.oldMeter !== oldMeter ||
-          r.bill.newMeter !== newMeter ||
-          (wm && (r.bill.waterOld !== waterOld || r.bill.waterNew !== waterNew)) ||
-          (r.bill.otherAmount || 0) !== parseNumber(e?.otherAmount) ||
-          (r.bill.otherNote || "") !== (e?.otherNote ?? "").trim();
-        return { r, e, wm, filled, kwh, m3, total, bad, badE, badW, changed, oldMeter, newMeter, waterOld, waterNew };
-      }),
-    [rows, entries]
+  // Tự lưu nháp (chạy sau khi vẽ xong → không làm chậm lúc gõ)
+  useEffect(() => {
+    saveDraft(building, month, { edits, readingDate: dateEdit });
+  }, [building, month, edits, dateEdit]);
+
+  const onChange = useCallback(
+    (id: string, field: Field, value: string) =>
+      setEdits((ed) => ({ ...ed, [id]: { ...(ed[id] ?? base[id]), [field]: value } })),
+    [base]
   );
 
-  const anyWater = rows.some((r) => r.room.waterMeter);
-  const toSave = computed.filter((c) => c.filled && !c.bad && c.changed);
-  const missing = computed.filter((c) => !c.filled).length;
-  const grand = computed.filter((c) => c.filled && !c.bad).reduce((s, c) => s + c.total, 0);
+  // Tổng & đếm ở thanh dưới: dùng giá trị "trễ" để ô đang gõ luôn được ưu tiên vẽ trước
+  const lazyEdits = useDeferredValue(edits);
+  const summary = useMemo(() => {
+    let toSave = 0, missing = 0, grand = 0;
+    for (const r of rows) {
+      const c = computeRow(r, lazyEdits[r.room._id] ?? base[r.room._id]);
+      if (!c.filled) missing++;
+      else if (!c.bad) grand += c.total;
+      if (shouldSave(c)) toSave++;
+    }
+    return { toSave, missing, grand };
+  }, [rows, base, lazyEdits]);
 
   const save = async () => {
+    if (saving) return;
+    // Chụp lại đúng các dòng gửi đi (tính từ giá trị mới nhất, không dùng giá trị "trễ")
+    const batch = rows
+      .map((r) => {
+        const e = edits[r.room._id] ?? base[r.room._id];
+        return { id: r.room._id, e, c: computeRow(r, e) };
+      })
+      .filter((x) => shouldSave(x.c));
+    if (!batch.length) return;
+
     setSaving(true);
     setMsg(null);
     try {
-      const res = await api<{ saved: number; errors: string[] }>("/api/admin/billing/bills", {
+      const res = await api<{ saved: number; errors: string[]; bills?: Bill[] }>("/api/admin/billing/bills", {
         method: "POST",
-        json: {
-          month,
-          readingDate,
-          entries: toSave.map((c) => ({
-            roomId: c.r.room._id,
-            oldMeter: c.oldMeter,
-            newMeter: c.newMeter,
-            waterOld: c.waterOld,
-            waterNew: c.waterNew,
-            otherAmount: parseNumber(c.e?.otherAmount),
-            otherNote: c.e?.otherNote ?? "",
-          })),
-        },
+        json: { month, readingDate, entries: batch.map((x) => x.c.payload) },
       });
+      const bills = res.bills ?? [];
+      applyBills(building, month, bills);
+      invalidateAfter(building, month);
+      // Bỏ nháp của các dòng đã lưu — trừ dòng người dùng sửa tiếp trong lúc đang lưu
+      const savedIds = new Set(bills.map((b) => b.roomId));
+      setEdits((ed) => {
+        const next = { ...ed };
+        for (const x of batch) if (savedIds.has(x.id) && next[x.id] === x.e) delete next[x.id];
+        return next;
+      });
+      setDateEdit((d) => (d === readingDate ? null : d));
       setMsg({ ok: res.errors.length === 0, text: `Đã lập ${res.saved} hóa đơn tháng ${monthLabel(month)}.`, errors: res.errors });
-      await onSaved();
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
     } finally {
@@ -132,26 +108,43 @@ export default function MeterTab({
     }
   };
 
+  // Ctrl+S / ⌘S → lưu (luôn gọi bản save mới nhất)
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; });
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") {
+        ev.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const discard = () => {
+    if (!confirm(`Bỏ số đã nhập nhưng chưa lưu của ${dirtyCount} phòng?`)) return;
+    setEdits({});
+    setDateEdit(null);
+  };
+
+  // File mẫu gồm tất cả nhà, tất cả phòng (số đang gõ dở của nhà này cũng được điền sẵn)
+  const [downloading, setDownloading] = useState(false);
   const downloadTemplate = async () => {
+    setDownloading(true);
     try {
-      await downloadMeterTemplate(
-        `so-dien-${building}-thang-${month.slice(5)}-${month.slice(0, 4)}.xlsx`,
-        `Nhà ${building} - chốt số điện, hóa đơn tháng ${monthLabel(month)}`,
-        rows.map((r) => {
-          const e = entries[r.room._id];
-          return {
-            code: r.room.code,
-            tenantName: r.room.tenantName,
-            oldMeter: parseNumber(e?.oldMeter),
-            newMeter: e?.newMeter.trim() ? parseNumber(e.newMeter) : null,
-            waterMeter: !!r.room.waterMeter,
-            waterOld: parseNumber(e?.waterOld),
-            waterNew: e?.waterNew.trim() ? parseNumber(e.waterNew) : null,
-          };
-        })
-      );
+      const drafts: Record<string, Draft> = {};
+      for (const [id, e] of Object.entries(edits)) {
+        drafts[id] = {
+          newMeter: e.newMeter.trim() ? parseNumber(e.newMeter) : null,
+          waterNew: e.waterNew.trim() ? parseNumber(e.waterNew) : null,
+        };
+      }
+      await downloadAllHousesTemplate(month, undefined, drafts);
     } catch (e: any) {
       setImportMsg({ ok: false, text: e.message });
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -163,28 +156,31 @@ export default function MeterTab({
     setImportMsg(null);
     try {
       const fileRows = await readMeterFile(file);
+      // File tất cả nhà → cập nhật mọi nhà cùng lúc ở màn xem trước
+      if (fileRows.some((f) => f.building)) {
+        onAllFile(fileRows, file.name);
+        return;
+      }
       const byCode = new Map(rows.map((r) => [r.room.code.toLowerCase(), r.room._id]));
-      const unknown: string[] = [];
+      const unknown = new Set<string>();
+      const patch: Edits = {};
       let filled = 0;
-      const next = { ...entries };
       for (const f of fileRows) {
-        // File tất cả nhà: chỉ lấy dòng của nhà đang chọn
-        if (f.building && f.building.toLowerCase() !== building.toLowerCase()) continue;
         const id = byCode.get(f.code.toLowerCase());
-        if (!id) { unknown.push(f.code); continue; }
-        const e = { ...next[id] };
+        if (!id) { unknown.add(f.code); continue; }
+        const e = { ...(patch[id] ?? edits[id] ?? base[id]) };
         if (f.newMeter !== null) { e.newMeter = String(f.newMeter); filled++; }
         if (f.waterNew !== null) e.waterNew = String(f.waterNew);
         if (f.otherAmount !== null) e.otherAmount = money(f.otherAmount);
         if (f.otherNote !== null) e.otherNote = f.otherNote;
-        next[id] = e;
+        patch[id] = e;
       }
-      setEntries(next);
+      setEdits((ed) => ({ ...ed, ...patch }));
       setImportMsg({
         ok: filled > 0,
         text:
           `Đã điền số mới cho ${filled} phòng từ file “${file.name}”. Kiểm tra lại rồi bấm Lưu & lập hóa đơn.` +
-          (unknown.length ? ` Không có phòng: ${[...new Set(unknown)].join(", ")}.` : ""),
+          (unknown.size ? ` Không có phòng: ${[...unknown].join(", ")}.` : ""),
       });
     } catch (e: any) {
       setImportMsg({ ok: false, text: e.message });
@@ -193,8 +189,8 @@ export default function MeterTab({
     }
   };
 
-  if (loading && rows.length === 0) return <p style={{ color: "#888" }}>Đang tải...</p>;
-  if (!loading && rows.length === 0)
+  if (!ready) return <p style={{ color: "#888" }}>Đang tải...</p>;
+  if (rows.length === 0)
     return (
       <div style={card}>
         <p style={{ marginTop: 0 }}>Chưa có phòng nào. Hãy thêm phòng hoặc nhập danh sách phòng từ file Excel trước.</p>
@@ -207,14 +203,17 @@ export default function MeterTab({
       <div style={{ ...card, display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
         <div style={{ width: 180 }}>
           <span style={label}>Ngày chốt số điện</span>
-          <input type="date" value={readingDate} onChange={(e) => setReadingDate(e.target.value)} style={input} />
+          <input type="date" value={readingDate} onChange={(e) => setDateEdit(e.target.value)} style={input} />
         </div>
         <div style={{ color: "#aaa", fontSize: 14, flex: 1, minWidth: 220 }}>
           Nhập <b>số điện mới</b> (và số nước với phòng có đồng hồ nước) của từng phòng (đồng hồ ngày 23–25/{monthLabel(addMonths(month, -1)).slice(0, 2)}).
           Số cũ tự lấy từ hóa đơn tháng trước. Hệ thống tự tính tiền phòng, điện, nước, xe, phí quản lý.
+          <br />File mẫu gồm <b>tất cả nhà</b> — điền xong nhập lại 1 lần là lập hóa đơn cho mọi nhà.
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={downloadTemplate} style={btn("#1f1f1f")}>⬇️ Tải file mẫu</button>
+          <button onClick={downloadTemplate} disabled={downloading} style={btn("#1f1f1f")} title="1 file gồm tất cả nhà, tất cả phòng">
+            {downloading ? "Đang tạo file..." : "⬇️ Tải file mẫu (tất cả nhà)"}
+          </button>
           <label style={{ ...btn("#2563eb"), display: "inline-block" }}>
             {importing ? "Đang đọc..." : "📤 Nhập file số điện"}
             <input type="file" accept=".xlsx,.csv" onChange={importFile} style={{ display: "none" }} disabled={importing} />
@@ -224,102 +223,58 @@ export default function MeterTab({
       </div>
 
       <div style={{ overflowX: "auto", border: "1px solid #222", borderRadius: 12 }}>
-        <table className="meter-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <table className="meter-table">
           <thead>
             <tr>
-              <th style={th}>#</th>
-              <th style={th}>Phòng</th>
-              <th style={th}>Điện cũ</th>
-              <th style={th}>Điện mới ⚡</th>
-              {anyWater && <th style={th}>Nước cũ</th>}
-              {anyWater && <th style={th}>Nước mới 💧</th>}
-              <th style={{ ...th, textAlign: "right" }}>Tiêu thụ</th>
-              <th style={th}>Khác (đ)</th>
-              <th style={th}>Nội dung khác</th>
-              <th style={{ ...th, textAlign: "right" }}>Tổng tiền</th>
-              <th style={th}></th>
+              <th>#</th>
+              <th>Phòng</th>
+              <th>Điện cũ</th>
+              <th>Điện mới ⚡</th>
+              {anyWater && <th>Nước cũ</th>}
+              {anyWater && <th>Nước mới 💧</th>}
+              <th className="r">Tiêu thụ</th>
+              <th>Khác (đ)</th>
+              <th>Nội dung khác</th>
+              <th className="r">Tổng tiền</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {computed.map(({ r, e, wm, kwh, m3, total, bad, badE, badW, filled, changed }, i) => (
-              <tr key={r.room._id} style={{ background: bad ? "#2a0f0f" : undefined }}>
-                <td style={{ ...cellTd, color: "#666" }}>{i + 1}</td>
-                <td style={{ ...cellTd, whiteSpace: "nowrap" }}>
-                  <b style={{ fontSize: 16, color: "#ff9800" }}>{r.room.code}</b>
-                  {r.room.tenantName && <div style={{ color: "#888", fontSize: 11, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{r.room.tenantName}</div>}
-                </td>
-                <td style={cellTd}>
-                  <input inputMode="numeric" value={e?.oldMeter ?? ""} onChange={(ev) => set(r.room._id, "oldMeter", ev.target.value)} style={{ ...cellInput, width: 90, color: "#aaa" }} />
-                </td>
-                <td style={cellTd}>
-                  <input
-                    data-nav="meter"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    placeholder="Nhập số"
-                    value={e?.newMeter ?? ""}
-                    onChange={(ev) => set(r.room._id, "newMeter", ev.target.value)}
-                    onKeyDown={nextOnEnter}
-                    style={{ ...cellInput, width: 110, fontWeight: 700, fontSize: 16, borderColor: badE ? "#b91c1c" : "#ff9800" }}
-                  />
-                </td>
-                {anyWater && (
-                  <td style={cellTd}>
-                    {wm && <input inputMode="numeric" value={e?.waterOld ?? ""} onChange={(ev) => set(r.room._id, "waterOld", ev.target.value)} style={{ ...cellInput, width: 80, color: "#aaa" }} />}
-                  </td>
-                )}
-                {anyWater && (
-                  <td style={cellTd}>
-                    {wm && (
-                      <input
-                        data-nav="meter"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        placeholder="Nhập số"
-                        value={e?.waterNew ?? ""}
-                        onChange={(ev) => set(r.room._id, "waterNew", ev.target.value)}
-                        onKeyDown={nextOnEnter}
-                        style={{ ...cellInput, width: 95, fontWeight: 700, fontSize: 16, borderColor: badW ? "#b91c1c" : "#3b82f6" }}
-                      />
-                    )}
-                  </td>
-                )}
-                <td style={{ ...cellTd, textAlign: "right", whiteSpace: "nowrap", color: bad ? "#f87171" : "#aaa", fontSize: 13 }}>
-                  {badE ? "Mới < cũ!" : badW ? "Nước mới < cũ!" : e?.newMeter.trim() ? `${kwh} kWh` : "—"}
-                  {wm && !badW && e?.waterNew.trim() && <div>{m3} m³</div>}
-                </td>
-                <td style={cellTd}>
-                  <input inputMode="numeric" placeholder="0" value={e?.otherAmount ?? ""} onChange={(ev) => set(r.room._id, "otherAmount", ev.target.value)} style={{ ...cellInput, width: 100 }} />
-                </td>
-                <td style={cellTd}>
-                  <input placeholder="VD: Tủ lạnh" value={e?.otherNote ?? ""} onChange={(ev) => set(r.room._id, "otherNote", ev.target.value)} style={{ ...cellInput, width: 150 }} />
-                </td>
-                <td style={{ ...cellTd, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{filled && !bad ? `${money(total)} đ` : ""}</td>
-                <td style={{ ...cellTd, fontSize: 12, whiteSpace: "nowrap" }}>
-                  {r.bill && !changed ? (
-                    <span style={{ color: "#4ade80" }}>✓ Đã lập</span>
-                  ) : r.bill ? (
-                    <span style={{ color: "#fbbf24" }}>Đã sửa</span>
-                  ) : filled && !bad ? (
-                    <span style={{ color: "#60a5fa" }}>Mới</span>
-                  ) : (
-                    <span style={{ color: "#555" }}>Chưa nhập</span>
-                  )}
-                </td>
-              </tr>
+            {rows.map((r, i) => (
+              <MeterRow
+                key={r.room._id}
+                index={i}
+                row={r}
+                entry={edits[r.room._id] ?? base[r.room._id]}
+                anyWater={anyWater}
+                onChange={onChange}
+              />
             ))}
           </tbody>
         </table>
       </div>
 
       <div style={{ position: "sticky", bottom: 0, background: "#000", padding: "12px 0", borderTop: "1px solid #222", marginTop: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <button disabled={saving || toSave.length === 0} onClick={save} style={{ ...btn(toSave.length ? "#16a34a" : "#333"), padding: "12px 20px", fontSize: 16, opacity: saving ? 0.6 : 1 }}>
-          {saving ? "Đang lưu..." : `💾 Lưu & lập hóa đơn (${toSave.length} phòng)`}
+        <button
+          disabled={saving || summary.toSave === 0}
+          onClick={save}
+          title="Phím tắt: Ctrl+S"
+          style={{ ...btn(summary.toSave ? "#16a34a" : "#333"), padding: "12px 20px", fontSize: 16, opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? "Đang lưu..." : `💾 Lưu & lập hóa đơn (${summary.toSave} phòng)`}
         </button>
         <span style={{ color: "#aaa", fontSize: 14 }}>
-          Tổng dự kiến: <b style={{ color: "#fff" }}>{money(grand)} đ</b>
-          {missing > 0 && <> · <span style={{ color: "#fbbf24" }}>{missing} phòng chưa nhập số</span></>}
+          Tổng dự kiến: <b style={{ color: "#fff" }}>{money(summary.grand)} đ</b>
+          {summary.missing > 0 && <> · <span style={{ color: "#fbbf24" }}>{summary.missing} phòng chưa nhập số</span></>}
         </span>
+        {dirtyCount > 0 && (
+          <span style={{ color: "#777", fontSize: 13 }}>
+            Nháp {dirtyCount} phòng tự lưu trên máy này ·{" "}
+            <button onClick={discard} style={{ ...btn("transparent", "#aaa"), padding: 0, fontWeight: 400, fontSize: 13, textDecoration: "underline" }}>
+              Bỏ thay đổi
+            </button>
+          </span>
+        )}
         {msg && (
           <div style={{ width: "100%", color: msg.ok ? "#4ade80" : "#f87171", fontSize: 14 }}>
             {msg.text}{" "}
@@ -333,7 +288,7 @@ export default function MeterTab({
         )}
       </div>
 
-      <style>{`.meter-table tbody tr:hover{background:#151515}`}</style>
+      <style>{meterTableCss}</style>
     </div>
   );
 }

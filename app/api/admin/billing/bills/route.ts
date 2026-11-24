@@ -59,6 +59,7 @@ export async function GET(req: Request) {
 }
 
 /** POST { month, readingDate, entries: [{ roomId, oldMeter, newMeter, waterOld, waterNew, otherAmount, otherNote }] }
+ *  → { saved, errors, bills } (bills = các hóa đơn vừa lưu).
  *  Lập (hoặc lập lại) hóa đơn. Giá lấy theo thông tin phòng hiện tại; giữ nguyên số đã thu + link khách. */
 export async function POST(req: Request) {
   const denied = await guard();
@@ -75,7 +76,8 @@ export async function POST(req: Request) {
     const date = readingDate ? new Date(readingDate) : new Date();
 
     const errors: string[] = [];
-    let saved = 0;
+    const ops: any[] = [];
+    const savedIds: string[] = [];
     for (const e of entries) {
       const room: any = roomById.get(String(e.roomId));
       if (!room) continue;
@@ -107,23 +109,28 @@ export async function POST(req: Request) {
         otherAmount: parseNumber(e.otherAmount),
         otherNote: String(e.otherNote ?? "").trim(),
       };
-      await Bill.updateOne(
-        { month, roomId: String(room._id) },
-        {
-          $set: {
-            ...input,
-            roomCode: room.code,
-            building: room.building,
-            total: billTotal(input),
-            readingDate: isNaN(date.getTime()) ? new Date() : date,
+      ops.push({
+        updateOne: {
+          filter: { month, roomId: String(room._id) },
+          update: {
+            $set: {
+              ...input,
+              roomCode: room.code,
+              building: room.building,
+              total: billTotal(input),
+              readingDate: isNaN(date.getTime()) ? new Date() : date,
+            },
+            $setOnInsert: { token: randomBytes(12).toString("base64url") },
           },
-          $setOnInsert: { token: randomBytes(12).toString("base64url") },
+          upsert: true,
         },
-        { upsert: true }
-      );
-      saved++;
+      });
+      savedIds.push(String(room._id));
     }
-    return NextResponse.json({ saved, errors });
+    // Ghi 1 lần cho cả nhà (thay vì từng phòng) rồi trả lại hóa đơn để trình duyệt cập nhật tại chỗ
+    if (ops.length) await Bill.bulkWrite(ops, { ordered: false });
+    const bills = ops.length ? await Bill.find({ month, roomId: { $in: savedIds } }).lean() : [];
+    return NextResponse.json({ saved: savedIds.length, errors, bills });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

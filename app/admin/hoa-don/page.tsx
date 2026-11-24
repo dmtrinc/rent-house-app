@@ -2,12 +2,13 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { addMonths, defaultBillMonth, isMonthKey, monthLabel, type Building } from "../../../lib/billing";
-import { api, btn, card, type MonthRow } from "./ui";
+import { api, btn, card } from "./ui";
+import { invalidate, prefetch, useMonthRows } from "./store";
 import MeterTab from "./MeterTab";
 import PaymentsTab from "./PaymentsTab";
 import RoomsTab from "./RoomsTab";
 import BuildingsTab from "./BuildingsTab";
-import BulkTab from "./BulkTab";
+import BulkTab, { type AllFile } from "./BulkTab";
 
 type Tab = "bulk" | "meter" | "pay" | "rooms" | "buildings";
 const TABS: Tab[] = ["bulk", "meter", "pay", "rooms", "buildings"];
@@ -18,9 +19,10 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
   const [tab, setTab] = useState<Tab>((TABS.includes(sp.tab as Tab) ? sp.tab : "bulk") as Tab);
   const [buildings, setBuildings] = useState<Building[] | null>(null);
   const [building, setBuilding] = useState(sp.b ?? "");
-  const [rows, setRows] = useState<MonthRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // File tất cả nhà chọn ở tab Chốt điện → mở tab "1 file tất cả nhà" với file đó
+  const [allFile, setAllFile] = useState<AllFile | null>(null);
+  const { rows, ready, loading, error: rowsError, reload } = useMonthRows(building, month);
 
   const loadBuildings = useCallback(async () => {
     try {
@@ -34,21 +36,21 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
 
   useEffect(() => { loadBuildings(); }, [loadBuildings]);
 
-  const load = useCallback(async () => {
-    if (!building) { setRows([]); setLoading(false); return; }
-    setLoading(true);
-    setError("");
-    try {
-      const data = await api<{ rows: MonthRow[] }>(`/api/admin/billing/bills?month=${month}&building=${encodeURIComponent(building)}`);
-      setRows(data.rows);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [month, building]);
+  // Sửa phòng → mọi tháng đã nhớ đều cũ; tải lại tháng đang xem ngay
+  const onRoomsChanged = useCallback(async () => {
+    invalidate((b) => b === building || b === "*");
+    await reload();
+  }, [building, reload]);
 
-  useEffect(() => { load(); }, [load]);
+  // Lúc rảnh: tải trước các nhà khác cùng tháng + tháng trước/sau → bấm chuyển là có ngay
+  useEffect(() => {
+    if (!ready || !buildings) return;
+    return prefetch([
+      ...buildings.map((b): [string, string] => [b.code, month]),
+      [building, addMonths(month, -1)],
+      [building, addMonths(month, 1)],
+    ]);
+  }, [ready, buildings, building, month]);
 
   // Giữ tháng + nhà + tab trên URL để F5 / quay lại từ trang in không bị mất
   useEffect(() => {
@@ -97,7 +99,7 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
           {tabs.map(([k, t]) => (
-            <button key={k} onClick={() => setTab(k)} style={{ ...btn(tab === k ? "#ff9800" : "#111", tab === k ? "#000" : "#fff"), border: "1px solid #222" }}>
+            <button key={k} onClick={() => { setTab(k); setAllFile(null); }} style={{ ...btn(tab === k ? "#ff9800" : "#111", tab === k ? "#000" : "#fff"), border: "1px solid #222" }}>
               {t}
             </button>
           ))}
@@ -113,10 +115,16 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
             <span style={{ color: "#888", fontSize: 13 }}>
               {tab === "bulk" ? "Tất cả nhà" : current?.address} · tiền điện tháng {monthLabel(addMonths(month, -1))}
             </span>
+            {loading && ready && tab !== "bulk" && <span style={{ color: "#555", fontSize: 12 }}>⟳ đang cập nhật…</span>}
           </div>
         )}
 
-        {error && <div style={{ background: "#3a1111", color: "#ff8a8a", padding: 12, borderRadius: 8, marginBottom: 12 }}>{error}</div>}
+        {(error || (rowsError && tab !== "bulk" && tab !== "buildings")) && (
+          <div style={{ background: "#3a1111", color: "#ff8a8a", padding: 12, borderRadius: 8, marginBottom: 12 }}>
+            {error || rowsError}{" "}
+            {rowsError && <button onClick={() => reload()} style={{ ...btn("transparent", "#ff8a8a"), padding: 0, textDecoration: "underline" }}>Thử lại</button>}
+          </div>
+        )}
 
         {buildings && buildings.length === 0 && tab !== "buildings" ? (
           <div style={card}>
@@ -125,12 +133,13 @@ export default function BillingPage({ searchParams }: { searchParams: Promise<{ 
           </div>
         ) : (
           <>
-            {tab === "bulk" && buildings && <BulkTab key={month} month={month} buildings={buildings} />}
+            {tab === "bulk" && buildings && <BulkTab key={`${month}-${allFile?.name ?? ""}`} month={month} buildings={buildings} initialFile={allFile} />}
             {tab === "meter" && building && (
-              <MeterTab key={`${building}-${month}`} month={month} building={building} rows={rows} loading={loading} onSaved={load} goPay={() => setTab("pay")} goRooms={() => setTab("rooms")} />
+              <MeterTab key={`${building}-${month}`} month={month} building={building} rows={rows} ready={ready} goPay={() => setTab("pay")} goRooms={() => setTab("rooms")}
+                onAllFile={(rows, name) => { setAllFile({ rows, name }); setTab("bulk"); }} />
             )}
-            {tab === "pay" && building && <PaymentsTab month={month} building={building} rows={rows} loading={loading} reload={load} />}
-            {tab === "rooms" && building && <RoomsTab key={building} building={building} onChanged={load} />}
+            {tab === "pay" && building && <PaymentsTab month={month} building={building} rows={rows} ready={ready} />}
+            {tab === "rooms" && building && <RoomsTab key={building} building={building} onChanged={onRoomsChanged} />}
           </>
         )}
         {tab === "buildings" && <BuildingsTab buildings={buildings ?? []} onChanged={loadBuildings} />}

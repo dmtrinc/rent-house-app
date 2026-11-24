@@ -2,11 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addMonths, billTotal, electricUsage, money, monthLabel, type Building } from "../../../lib/billing";
 import { downloadMeterTemplate, readMeterFile, type MeterFileRow } from "../../../lib/meter-file";
-import { api, btn, card, input, label, td, th, type MonthRow } from "./ui";
-
-function todayVN(): string {
-  return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
-}
+import { api, btn, card, input, label, td, th, todayVN, type MonthRow } from "./ui";
+import { invalidate } from "./store";
 
 function norm(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/\s+/g, " ").trim();
@@ -24,12 +21,41 @@ type Line = {
   error: string | null;
 };
 
-/* Nhập 1 file số điện cho tất cả nhà → xem trước → lập hóa đơn hàng loạt. */
-export default function BulkTab({ month, buildings }: { month: string; buildings: Building[] }) {
+export type AllFile = { rows: MeterFileRow[]; name: string };
+
+/** Số mới đang gõ dở (chưa lưu) của 1 phòng — để điền sẵn vào file mẫu. */
+export type Draft = { newMeter: number | null; waterNew: number | null };
+
+/** Tải file mẫu gồm TẤT CẢ nhà, tất cả phòng của tháng `month` (có cột "Nhà").
+ *  rows: dữ liệu building=* nếu đã có; không có thì tự tải. drafts: số đang gõ dở theo roomId. */
+export async function downloadAllHousesTemplate(month: string, rows?: MonthRow[], drafts?: Record<string, Draft>) {
+  const all = rows ?? (await api<{ rows: MonthRow[] }>(`/api/admin/billing/bills?month=${month}&building=*`)).rows;
+  await downloadMeterTemplate(
+    `so-dien-tat-ca-nha-thang-${month.slice(5)}-${month.slice(0, 4)}.xlsx`,
+    `Tất cả nhà - chốt số điện, hóa đơn tháng ${monthLabel(month)}`,
+    all.map((r) => {
+      const d = drafts?.[r.room._id];
+      return {
+        building: r.room.building,
+        code: r.room.code,
+        tenantName: r.room.tenantName,
+        oldMeter: r.bill ? r.bill.oldMeter : r.prevMeter,
+        newMeter: d?.newMeter ?? (r.bill ? r.bill.newMeter : null),
+        waterMeter: !!r.room.waterMeter,
+        waterOld: r.bill?.waterMeter ? r.bill.waterOld : r.prevWater,
+        waterNew: d?.waterNew ?? (r.bill?.waterMeter ? r.bill.waterNew : null),
+      };
+    })
+  );
+}
+
+/* Nhập 1 file số điện cho tất cả nhà → xem trước → lập hóa đơn hàng loạt.
+ * initialFile: file đã chọn ở tab Chốt điện (có cột "Nhà") → mở thẳng phần xem trước. */
+export default function BulkTab({ month, buildings, initialFile }: { month: string; buildings: Building[]; initialFile?: AllFile | null }) {
   const [rows, setRows] = useState<MonthRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fileRows, setFileRows] = useState<MeterFileRow[] | null>(null);
-  const [fileName, setFileName] = useState("");
+  const [fileRows, setFileRows] = useState<MeterFileRow[] | null>(initialFile?.rows ?? null);
+  const [fileName, setFileName] = useState(initialFile?.name ?? "");
   const [readingDate, setReadingDate] = useState(todayVN());
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string; errors?: string[] } | null>(null);
@@ -59,7 +85,8 @@ export default function BulkTab({ month, buildings }: { month: string; buildings
   }, [buildings]);
 
   const { lines, unknown, missing } = useMemo(() => {
-    if (!fileRows) return { lines: [] as Line[], unknown: [] as string[], missing: [] as MonthRow[] };
+    // Chưa tải xong danh sách phòng → chưa so khớp (tránh báo nhầm "không tìm thấy")
+    if (!fileRows || loading) return { lines: [] as Line[], unknown: [] as string[], missing: [] as MonthRow[] };
     const byKey = new Map(rows.map((r) => [`${r.room.building}|${r.room.code.toLowerCase()}`, r]));
     const used = new Set<string>();
     const unknown: string[] = [];
@@ -89,7 +116,7 @@ export default function BulkTab({ month, buildings }: { month: string; buildings
     }
     const missing = rows.filter((r) => !used.has(r.room._id) && !r.bill);
     return { lines, unknown, missing };
-  }, [fileRows, rows, houseOf]);
+  }, [fileRows, rows, houseOf, loading]);
 
   const ok = lines.filter((l) => !l.error);
   const grand = ok.reduce((s, l) => s + l.total, 0);
@@ -113,20 +140,7 @@ export default function BulkTab({ month, buildings }: { month: string; buildings
 
   const template = async () => {
     try {
-      await downloadMeterTemplate(
-        `so-dien-tat-ca-nha-thang-${month.slice(5)}-${month.slice(0, 4)}.xlsx`,
-        `Tất cả nhà - chốt số điện, hóa đơn tháng ${monthLabel(month)}`,
-        rows.map((r) => ({
-          building: r.room.building,
-          code: r.room.code,
-          tenantName: r.room.tenantName,
-          oldMeter: r.bill ? r.bill.oldMeter : r.prevMeter,
-          newMeter: r.bill ? r.bill.newMeter : null,
-          waterMeter: !!r.room.waterMeter,
-          waterOld: r.bill?.waterMeter ? r.bill.waterOld : r.prevWater,
-          waterNew: r.bill?.waterMeter ? r.bill.waterNew : null,
-        }))
-      );
+      await downloadAllHousesTemplate(month, rows);
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
     }
@@ -154,6 +168,7 @@ export default function BulkTab({ month, buildings }: { month: string; buildings
       });
       setMsg({ ok: res.errors.length === 0, text: `Đã lập ${res.saved} hóa đơn tháng ${monthLabel(month)} cho ${new Set(ok.map((l) => l.row.room.building)).size} nhà. Vào tab Thu tiền của từng nhà để in / gửi phiếu.`, errors: res.errors });
       setFileRows(null);
+      invalidate((_b, m) => m >= month); // tab từng nhà sẽ tải lại tháng này + các tháng sau
       await load();
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
@@ -192,7 +207,8 @@ export default function BulkTab({ month, buildings }: { month: string; buildings
         </div>
       )}
 
-      {fileRows && (
+      {fileRows && loading && <p style={{ color: "#888" }}>Đang đọc file “{fileName}”…</p>}
+      {fileRows && !loading && (
         <>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
             <span style={{ color: "#aaa" }}>

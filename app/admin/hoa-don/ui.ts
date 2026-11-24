@@ -76,7 +76,12 @@ export type Bill = {
   token: string;
 };
 
-export type MonthRow = { room: Room; bill: Bill | null; prevMeter: number; prevWater: number };
+/** Ngày hôm nay theo giờ Việt Nam, dạng "2026-11-23". */
+export function todayVN(): string {
+  return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+}
+
+export type MonthRow ={ room: Room; bill: Bill | null; prevMeter: number; prevWater: number };
 
 export async function api<T = any>(url: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const res = await fetch(url, {
